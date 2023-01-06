@@ -1,0 +1,22 @@
+project: VAE(CRPS)
+# program: main.py
+program: synthesize.py
+method: grid
+# metric:
+#   goal: minimize
+#   name: loss
+parameters:
+  num:
+    values: [6]
+  #   values: [0, 1, 2, 3, 4, 5]
+  # seed:
+  #   values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  # dataset:
+  #   values: ['covtype', 'credit']
+    # values: ['covtype']
+    # values: ['credit']
+  # latent_dim: 
+  #   values: [128]
+    # values: [2, 4, 8]
+  # sigma_range:
+  #   values: [[0.01, 0.1], [0.1, 1]]
