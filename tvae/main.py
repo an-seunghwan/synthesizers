@@ -88,7 +88,7 @@ def main():
         torch.cuda.manual_seed(config["seed"])
     #%%
     """dataset"""
-    dataset, dataloader, transformer, test = generate_dataset(config, device, random_state=0)
+    dataset, dataloader, transformer, train, _, _, _ = generate_dataset(config, device, random_state=0)
     
     config["input_dim"] = transformer.output_dimensions
     #%%
