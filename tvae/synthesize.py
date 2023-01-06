@@ -17,13 +17,14 @@ from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
 
 from modules.simulation import set_random_seed
-
 from modules.model import TVAE
-
 from modules.datasets import generate_dataset
-
-import statsmodels.api as sm
-from sklearn.ensemble import RandomForestRegressor
+from modules.evaluation import (
+    regression_eval,
+    classification_eval,
+    goodness_of_fit,
+    privacy_metrics
+)
 #%%
 import sys
 import subprocess
@@ -37,9 +38,9 @@ except:
     import wandb
 
 run = wandb.init(
-    project="VAE(CRPS)", 
+    project="DistVAE", 
     entity="anseunghwan",
-    tags=["TVAE", "Synthesize"],
+    tags=['TVAE', 'Synthetic'],
 )
 #%%
 import argparse
@@ -63,7 +64,7 @@ def main():
     
     """model load"""
     artifact = wandb.use_artifact(
-        'anseunghwan/VAE(CRPS)/TVAE_{}:v{}'.format(dataset, config["num"]), type='model')
+        'anseunghwan/DistVAE/TVAE_{}:v{}'.format(dataset, config["num"]), type='model')
     for key, item in artifact.metadata.items():
         config[key] = item
     assert dataset == config["dataset"]
@@ -95,55 +96,24 @@ def main():
     model.eval()
     #%%
     """dataset"""
-    dataset, dataloader, transformer = generate_dataset(config, device, random_state=0)
+    _, _, transformer, train, test, continuous, discrete = generate_dataset(config, device, random_state=0)
     
     config["input_dim"] = transformer.output_dimensions
     #%%
-    if not os.path.exists('./assets/{}'.format(config["dataset"])):
-        os.makedirs('./assets/{}'.format(config["dataset"]))
-        
-    if config["dataset"] == 'covtype':
-        df = pd.read_csv('./data/covtype.csv')
-        df = df.sample(frac=1, random_state=5).reset_index(drop=True)
-        continuous = [
-            'Horizontal_Distance_To_Hydrology', 
-            'Vertical_Distance_To_Hydrology',
-            'Horizontal_Distance_To_Roadways',
-            'Horizontal_Distance_To_Fire_Points',
-            'Elevation', 
-            'Aspect', 
-            # 'Slope', 
-            # 'Cover_Type'
-        ]
-        df = df[continuous]
-        df = df.dropna(axis=0)
-        
-        train = df.iloc[2000:, ]
-        test = df.iloc[:2000, ]
-        
-    elif config["dataset"] == 'credit':
-        df = pd.read_csv('./data/application_train.csv')
-        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
-        
-        continuous = [
-            'AMT_INCOME_TOTAL', 
-            'AMT_CREDIT',
-            'AMT_ANNUITY',
-            'AMT_GOODS_PRICE',
-            'REGION_POPULATION_RELATIVE', 
-            'DAYS_BIRTH', 
-            'DAYS_EMPLOYED', 
-            'DAYS_REGISTRATION',
-            'DAYS_ID_PUBLISH',
-        ]
-        df = df[continuous]
-        df = df.dropna(axis=0)
-        
-        train = df.iloc[:300000]
-        test = df.iloc[300000:]
-        
-    else:
-        raise ValueError('Not supported dataset!')
+    # preprocess
+    std = train[continuous].std(axis=0)
+    mean = train[continuous].mean(axis=0)
+    train[continuous] = (train[continuous] - mean) / std
+    test[continuous] = (test[continuous] - mean) / std
+    
+    df = pd.concat([train, test], axis=0)
+    df_dummy = []
+    for d in discrete:
+        df_dummy.append(pd.get_dummies(df[d], prefix=d))
+    df = pd.concat([df.drop(columns=discrete)] + df_dummy, axis=1)
+    
+    train = df.iloc[:45000]
+    test = df.iloc[45000:]
     #%%
     """synthetic dataset"""
     torch.manual_seed(config["seed"])
@@ -160,62 +130,110 @@ def main():
     data = np.concatenate(data, axis=0)
     data = data[:len(train)]
     sample_df = transformer.inverse_transform(data, model.sigma.detach().cpu().numpy())
+    
+    std = sample_df[continuous].std(axis=0)
+    mean = sample_df[continuous].mean(axis=0)
+    sample_df[continuous] = (sample_df[continuous] - mean) / std
+    
+    df_dummy = []
+    for d in discrete:
+        df_dummy.append(pd.get_dummies(sample_df[d], prefix=d))
+    sample_df = pd.concat([sample_df.drop(columns=discrete)] + df_dummy, axis=1)
     #%%
-    """Machine Learning Efficacy"""
+    """Regression"""
     if config["dataset"] == "covtype":
         target = 'Elevation'
     elif config["dataset"] == "credit":
         target = 'AMT_INCOME_TOTAL'
     else:
         raise ValueError('Not supported dataset!')
-    covariates = [x for x in train.columns if x not in [target]]
     #%%
-    # Baseline
-    std = train.std(axis=0)
-    mean = train.mean(axis=0)
-    train = (train - mean) / std
-    test = (test - mean) / std
-    
-    if config["dataset"] == 'covtype':
-        regr = RandomForestRegressor(random_state=0)
-        regr.fit(train[covariates], train[target])
-        pred = regr.predict(test[covariates])
-    
+    # baseline
+    print("\nBaseline: Machine Learning Utility in Regression...\n")
+    base_r2result = regression_eval(train, test, target)
+    wandb.log({'R^2 (Baseline)': np.mean([x[1] for x in base_r2result])})
+    #%%
+    # TVAE
+    print("\nSynthetic: Machine Learning Utility in Regression...\n")
+    r2result = regression_eval(sample_df, test, target)
+    wandb.log({'R^2 (TVAE)': np.mean([x[1] for x in r2result])})
+    #%%
+    # visualization
+    fig = plt.figure(figsize=(5, 4))
+    plt.plot([x[1] for x in base_r2result], 'o--', label='baseline')
+    plt.plot([x[1] for x in r2result], 'o--', label='synthetic')
+    plt.ylim(0, 1)
+    plt.ylabel('$R^2$', fontsize=13)
+    plt.xticks([0, 1, 2], [x[0] for x in base_r2result], fontsize=13)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('./assets/{}/{}_MLU_regression.png'.format(config["dataset"], config["dataset"]))
+    # plt.show()
+    plt.close()
+    wandb.log({'ML Utility (Regression)': wandb.Image(fig)})
+    #%%
+    """Classification"""
+    if config["dataset"] == "covtype":
+        target = 'Cover_Type'
     elif config["dataset"] == "credit":
-        linreg = sm.OLS(train[target], train[covariates]).fit()
-        # print(linreg.summary())
-        pred = linreg.predict(test[covariates])
-            
+        target = 'TARGET'
     else:
         raise ValueError('Not supported dataset!')
-    
-    rsq_baseline = (test[target] - pred).pow(2).sum()
-    rsq_baseline /= np.var(test[target]) * len(test)
-    rsq_baseline = 1 - rsq_baseline
-    print("[Baseline] R-squared: {:.3f}".format(rsq_baseline))
-    wandb.log({'R^2 (Baseline)': rsq_baseline})
     #%%
-    # synthetic
-    sample_df = (sample_df - sample_df.mean(axis=0)) / sample_df.std(axis=0)
+    # baseline
+    print("\nBaseline: Machine Learning Utility in Classification...\n")
+    base_f1result = classification_eval(train, test, target)
+    wandb.log({'F1 (Baseline)': np.mean([x[1] for x in base_f1result])})
+    #%%
+    # TVAE
+    print("\nSynthetic: Machine Learning Utility in Classification...\n")
+    f1result = classification_eval(sample_df, test, target)
+    wandb.log({'F1 (TVAE)': np.mean([x[1] for x in f1result])})
+    #%%
+    # visualization
+    fig = plt.figure(figsize=(5, 4))
+    plt.plot([x[1] for x in base_f1result], 'o--', label='baseline')
+    plt.plot([x[1] for x in f1result], 'o--', label='synthetic')
+    plt.ylim(0, 1)
+    plt.ylabel('$F_1$', fontsize=13)
+    plt.xticks([0, 1, 2], [x[0] for x in base_f1result], fontsize=13)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('./assets/{}/{}_MLU_classification.png'.format(config["dataset"], config["dataset"]))
+    # plt.show()
+    plt.close()
+    wandb.log({'ML Utility (Classification)': wandb.Image(fig)})
+    #%%
+    """Goodness of Fit""" # only continuous
+    print("\nGoodness of Fit...\n")
     
-    if config["dataset"] == 'covtype':
-        regr = RandomForestRegressor(random_state=0)
-        regr.fit(sample_df[covariates], sample_df[target])
-        pred = regr.predict(test[covariates])
+    Dn, W1 = goodness_of_fit(len(continuous), train.to_numpy(), sample_df.to_numpy())
     
-    elif config["dataset"] == "credit":
-        linreg = sm.OLS(sample_df[target], sample_df[covariates]).fit()
-        # print(linreg.summary())
-        pred = linreg.predict(test[covariates])
-            
-    else:
-        raise ValueError('Not supported dataset!')
+    print('Goodness of Fit (Kolmogorov): {:.3f}'.format(Dn))
+    print('Goodness of Fit (1-Wasserstein): {:.3f}'.format(W1))
+    wandb.log({'Goodness of Fit (Kolmogorov)': Dn})
+    wandb.log({'Goodness of Fit (1-Wasserstein)': W1})
+    #%%
+    """Privacy Preservability""" # only continuous
+    print("\nPrivacy Preservability...\n")
     
-    rsq = (test[target] - pred).pow(2).sum()
-    rsq /= np.var(test[target]) * len(test)
-    rsq = 1 - rsq
-    print("[TVAE] R-squared: {:.3f}".format(rsq))
-    wandb.log({'R^2 (TVAE)': rsq})
+    privacy = privacy_metrics(train[continuous], sample_df[continuous])
+    
+    DCR = privacy[0, :3]
+    print('DCR (R&S): {:.3f}'.format(DCR[0]))
+    print('DCR (R): {:.3f}'.format(DCR[1]))
+    print('DCR (S): {:.3f}'.format(DCR[2]))
+    wandb.log({'DCR (R&S)': DCR[0]})
+    wandb.log({'DCR (R)': DCR[1]})
+    wandb.log({'DCR (S)': DCR[2]})
+    
+    NNDR = privacy[0, 3:]
+    print('NNDR (R&S): {:.3f}'.format(NNDR[0]))
+    print('NNDR (R): {:.3f}'.format(NNDR[1]))
+    print('NNDR (S): {:.3f}'.format(NNDR[2]))
+    wandb.log({'NNDR (R&S)': NNDR[0]})
+    wandb.log({'NNDR (R)': NNDR[1]})
+    wandb.log({'NNDR (S)': NNDR[2]})
     #%%
     wandb.run.finish()
 #%%
