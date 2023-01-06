@@ -14,13 +14,11 @@ class TVAE(nn.Module):
         
         """encoder"""
         self.encoder = nn.Sequential(
-            nn.Linear(config["input_dim"], 32),
+            nn.Linear(config["input_dim"], 16),
             nn.ReLU(),
-            nn.Linear(32, 16),
+            nn.Linear(16, 8),
             nn.ReLU(),
-            nn.Linear(16, 16),
-            nn.ReLU(),
-            nn.Linear(16, config["latent_dim"] * 2),
+            nn.Linear(8, config["latent_dim"] * 2),
         ).to(device)
         # self.encoder = nn.Sequential(
         #     nn.Linear(config["input_dim"], 128),
@@ -34,11 +32,9 @@ class TVAE(nn.Module):
         self.decoder = nn.Sequential(
             nn.Linear(config["latent_dim"], 16),
             nn.ReLU(),
-            nn.Linear(16, 16),
+            nn.Linear(16, 64),
             nn.ReLU(),
-            nn.Linear(16, 32),
-            nn.ReLU(),
-            nn.Linear(32, config["input_dim"]),
+            nn.Linear(64, config["input_dim"]),
         ).to(device)
         # self.decoder = nn.Sequential(
         #     nn.Linear(config["latent_dim"], 128),

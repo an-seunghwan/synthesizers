@@ -17,11 +17,8 @@ from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
 
 from modules.simulation import set_random_seed
-
 from modules.model import TVAE
-
 from modules.datasets import generate_dataset
-
 from modules.train import train
 #%%
 import sys
@@ -36,7 +33,7 @@ except:
     import wandb
 
 run = wandb.init(
-    project="VAE(CRPS)", 
+    project="DistVAE", 
     entity="anseunghwan",
     tags=["TVAE"],
 )
@@ -56,7 +53,7 @@ def get_args(debug):
     parser.add_argument('--seed', type=int, default=1, 
                         help='seed for repeatable results')
     parser.add_argument('--dataset', type=str, default='covtype', 
-                        help='Dataset options: covtype, credit')
+                        help='Dataset options: covtype, credit, ???')
 
     parser.add_argument("--latent_dim", default=2, type=int,
                         help="the dimension of latent variable")
@@ -91,7 +88,7 @@ def main():
         torch.cuda.manual_seed(config["seed"])
     #%%
     """dataset"""
-    dataset, dataloader, transformer = generate_dataset(config, device, random_state=0)
+    dataset, dataloader, transformer, test = generate_dataset(config, device, random_state=0)
     
     config["input_dim"] = transformer.output_dimensions
     #%%
@@ -102,9 +99,9 @@ def main():
         lr=config["lr"],
         weight_decay=config["weight_decay"]
     )
-    #%%
-    model.train()
     
+    model.train()
+    #%%
     for epoch in range(config["epochs"]):
         logs = train(transformer.output_info_list, dataset, dataloader, model, config, optimizer, device)
         
