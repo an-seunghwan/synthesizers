@@ -67,7 +67,7 @@ def get_args(debug):
                         help='learning rate')
     parser.add_argument('--weight_decay', default=1e-5, type=float, 
                         help='weight decay parameter')
-    parser.add_argument('--sigma_range', default=[0.01, 0.1], type=arg_as_list,
+    parser.add_argument('--sigma_range', default=[0.1, 1], type=arg_as_list,
                         help='range of observational noise')
     
     if debug:

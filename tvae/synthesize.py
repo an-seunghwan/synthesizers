@@ -47,7 +47,7 @@ import argparse
 def get_args(debug):
     parser = argparse.ArgumentParser('parameters')
     
-    parser.add_argument('--num', type=int, default=0, 
+    parser.add_argument('--num', type=int, default=2, 
                         help='model version')
 
     if debug:
@@ -94,6 +94,12 @@ def main():
                 model_dir + '/' + model_name, map_location=torch.device('cpu')))
     
     model.eval()
+    #%%
+    """Number of Parameters"""
+    count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
+    num_params = count_parameters(model)
+    print("Number of Parameters:", num_params)
+    wandb.log({'Number of Parameters': num_params})
     #%%
     """dataset"""
     _, _, transformer, train, test, continuous, discrete = generate_dataset(config, device, random_state=0)
