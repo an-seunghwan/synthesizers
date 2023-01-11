@@ -46,6 +46,12 @@ def classification_eval(train, test, target):
     train_target = train[target_].idxmax(axis=1)
     test_target = test[target_].idxmax(axis=1).to_numpy()
     
+    if len(train_target.unique()) < 2: # classification can not be defined!
+        result = []
+        for name in ['logistic', 'RF', 'GradBoost']:
+            result.append((name, 0))
+        return result
+    
     result = []
     for name, clf in [
         ('logistic', LogisticRegression(multi_class='ovr')), 
