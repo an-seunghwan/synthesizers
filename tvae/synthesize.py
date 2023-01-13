@@ -61,6 +61,7 @@ def main():
     
     dataset = 'covtype'
     # dataset = 'credit'
+    # dataset = 'loan'
     
     """model load"""
     artifact = wandb.use_artifact(
@@ -118,8 +119,17 @@ def main():
         df_dummy.append(pd.get_dummies(df[d], prefix=d))
     df = pd.concat([df.drop(columns=discrete)] + df_dummy, axis=1)
     
-    train = df.iloc[:45000]
-    test = df.iloc[45000:]
+    if config["dataset"] == "covtype":
+        train = df.iloc[:45000]
+        test = df.iloc[45000:]
+    elif config["dataset"] == "credit":
+        train = df.iloc[:45000]
+        test = df.iloc[45000:]
+    elif config["dataset"] == "loan":
+        train = df.iloc[:4000]
+        test = df.iloc[4000:]
+    else:
+        raise ValueError('Not supported dataset!')
     #%%
     """synthetic dataset"""
     torch.manual_seed(config["seed"])
@@ -146,11 +156,16 @@ def main():
         df_dummy.append(pd.get_dummies(sample_df[d], prefix=d))
     sample_df = pd.concat([sample_df.drop(columns=discrete)] + df_dummy, axis=1)
     #%%
+    if not os.path.exists('./assets/{}'.format(config["dataset"])):
+        os.makedirs('./assets/{}'.format(config["dataset"]))
+    #%%
     """Regression"""
     if config["dataset"] == "covtype":
         target = 'Elevation'
     elif config["dataset"] == "credit":
         target = 'AMT_INCOME_TOTAL'
+    elif config["dataset"] == "loan":
+        target = 'Income'
     else:
         raise ValueError('Not supported dataset!')
     #%%
@@ -183,6 +198,8 @@ def main():
         target = 'Cover_Type'
     elif config["dataset"] == "credit":
         target = 'TARGET'
+    elif config["dataset"] == "loan":
+        target = 'Personal Loan'
     else:
         raise ValueError('Not supported dataset!')
     #%%
