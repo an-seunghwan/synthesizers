@@ -83,6 +83,35 @@ def generate_dataset(config, device, random_state=0):
         transformer.fit(train, discrete_columns=discrete, random_state=random_state)
         train_data = transformer.transform(train)
         
+    elif config["dataset"] == 'loan':
+        df = pd.read_csv('./data/Bank_Personal_Loan_Modelling.csv')
+        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
+        
+        continuous = [
+            'Age',
+            'Experience',
+            'Income', # target variable
+            'CCAvg',
+            'Mortgage',
+        ]
+        discrete = [
+            'Family',
+            'Personal Loan', # target variable
+            'Securities Account',
+            'CD Account',
+            'Online',
+            'CreditCard'
+        ]
+        df = df[continuous + discrete]
+        df = df.dropna()
+        
+        train = df.iloc[:4000]
+        test = df.iloc[4000:]
+        
+        transformer = DataTransformer()
+        transformer.fit(train, discrete_columns=discrete, random_state=random_state)
+        train_data = transformer.transform(train)
+        
     else:
         raise ValueError('Not supported dataset!')    
 
