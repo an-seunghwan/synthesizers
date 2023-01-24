@@ -88,9 +88,9 @@ def generate_dataset(config, device, random_state=0):
         df = df.sample(frac=1, random_state=0).reset_index(drop=True)
         
         continuous = [
-            'Age',
+            'Age', # target variable
             'Experience',
-            'Income', # target variable
+            'Income', 
             'CCAvg',
             'Mortgage',
         ]
@@ -107,6 +107,105 @@ def generate_dataset(config, device, random_state=0):
         
         train = df.iloc[:4000]
         test = df.iloc[4000:]
+        
+        transformer = DataTransformer()
+        transformer.fit(train, discrete_columns=discrete, random_state=random_state)
+        train_data = transformer.transform(train)
+        
+    elif config["dataset"] == 'adult':
+        df = pd.read_csv('./data/adult.csv')
+        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
+        df = df[(df == '?').sum(axis=1) == 0]
+        
+        continuous = [
+            'age', # target variable
+            'educational-num',
+            'capital-gain', 
+            'capital-loss', 
+            'hours-per-week',
+        ]
+        discrete = [
+            'workclass',
+            'education',
+            'marital-status',
+            'occupation',
+            'relationship',
+            'race',
+            'gender',
+            'native-country',
+            'income', # target variable
+        ]
+        df = df[continuous + discrete]
+        df = df.dropna()
+        
+        train = df.iloc[:40000]
+        test = df.iloc[40000:]
+        
+        transformer = DataTransformer()
+        transformer.fit(train, discrete_columns=discrete, random_state=random_state)
+        train_data = transformer.transform(train)
+        
+    elif config["dataset"] == 'cabs':
+        df = pd.read_csv('./data/sigma_cabs.csv')
+        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
+        df = df.dropna().reset_index().drop(columns='index')
+        
+        continuous = [
+            'Trip_Distance', # target variable
+            'Life_Style_Index', 
+            'Customer_Rating', 
+            'Var1',
+            'Var2',
+            'Var3',
+        ]
+        discrete = [
+            'Type_of_Cab',
+            'Customer_Since_Months',
+            'Confidence_Life_Style_Index',
+            'Destination_Type',
+            'Cancellation_Last_1Month',
+            'Gender',
+            'Surge_Pricing_Type', # target variable
+        ]
+        df = df[continuous + discrete]
+        
+        train = df.iloc[:40000]
+        test = df.iloc[40000:]
+        
+        transformer = DataTransformer()
+        transformer.fit(train, discrete_columns=discrete, random_state=random_state)
+        train_data = transformer.transform(train)
+        
+    elif config["dataset"] == 'kings':
+        df = pd.read_csv('./data/kc_house_data.csv')
+        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
+        
+        continuous = [
+            'price', 
+            'sqft_living',
+            'sqft_lot',
+            'sqft_above',
+            'sqft_basement',
+            'yr_built',
+            'yr_renovated',
+            'lat',
+            'long', # target variable
+            'sqft_living15',
+            'sqft_lot15',
+        ]
+        discrete = [
+            'bedrooms',
+            'bathrooms',
+            'floors',
+            'waterfront',
+            'view',
+            'condition', # target variable
+            'grade', 
+        ]
+        df = df[continuous + discrete]
+        
+        train = df.iloc[:20000]
+        test = df.iloc[20000:]
         
         transformer = DataTransformer()
         transformer.fit(train, discrete_columns=discrete, random_state=random_state)
