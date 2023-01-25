@@ -41,7 +41,7 @@ def regression_eval(train, test, target):
         mare = mare.mean()
         
         result.append((name, mare))
-        print("[{}] MARE: {:.3f}%".format(name, mare))
+        print("[{}] MARE: {:.3f}".format(name, mare))
     return result
 #%%
 # def regression_eval(train, test, target):

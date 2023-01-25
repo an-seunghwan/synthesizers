@@ -47,8 +47,10 @@ import argparse
 def get_args(debug):
     parser = argparse.ArgumentParser('parameters')
     
-    parser.add_argument('--num', type=int, default=2, 
+    parser.add_argument('--num', type=int, default=0, 
                         help='model version')
+    parser.add_argument('--dataset', type=str, default='covtype', 
+                        help='Dataset options: covtype, credit, loan, adult, cabs, kings')
 
     if debug:
         return parser.parse_args(args=[])
@@ -59,16 +61,11 @@ def main():
     #%%
     config = vars(get_args(debug=False)) # default configuration
     
-    dataset = 'covtype'
-    # dataset = 'credit'
-    # dataset = 'loan'
-    
     """model load"""
     artifact = wandb.use_artifact(
-        'anseunghwan/DistVAE/TVAE_{}:v{}'.format(dataset, config["num"]), type='model')
+        'anseunghwan/DistVAE/TVAE_{}:v{}'.format(config["dataset"], config["num"]), type='model')
     for key, item in artifact.metadata.items():
         config[key] = item
-    assert dataset == config["dataset"]
     model_dir = artifact.download()
     
     config["cuda"] = torch.cuda.is_available()
@@ -108,10 +105,10 @@ def main():
     config["input_dim"] = transformer.output_dimensions
     #%%
     # preprocess
-    std = train[continuous].std(axis=0)
-    mean = train[continuous].mean(axis=0)
-    train[continuous] = (train[continuous] - mean) / std
-    test[continuous] = (test[continuous] - mean) / std
+    train_mean = train[continuous].mean(axis=0)
+    train_std = train[continuous].std(axis=0)
+    train[continuous] = (train[continuous] - train_mean) / train_std
+    test[continuous] = (test[continuous] - train_mean) / train_std
     
     df = pd.concat([train, test], axis=0)
     df_dummy = []
@@ -128,6 +125,15 @@ def main():
     elif config["dataset"] == "loan":
         train = df.iloc[:4000]
         test = df.iloc[4000:]
+    elif config["dataset"] == "adult":
+        train = df.iloc[:40000]
+        test = df.iloc[40000:]
+    elif config["dataset"] == "cabs":
+        train = df.iloc[:40000]
+        test = df.iloc[40000:]
+    elif config["dataset"] == "kings":
+        train = df.iloc[:20000]
+        test = df.iloc[20000:]
     else:
         raise ValueError('Not supported dataset!')
     #%%
@@ -147,10 +153,6 @@ def main():
     data = data[:len(train)]
     sample_df = transformer.inverse_transform(data, model.sigma.detach().cpu().numpy())
     
-    std = sample_df[continuous].std(axis=0)
-    mean = sample_df[continuous].mean(axis=0)
-    sample_df[continuous] = (sample_df[continuous] - mean) / std
-    
     df_dummy = []
     for d in discrete:
         df_dummy.append(pd.get_dummies(sample_df[d], prefix=d))
@@ -159,78 +161,15 @@ def main():
     if not os.path.exists('./assets/{}'.format(config["dataset"])):
         os.makedirs('./assets/{}'.format(config["dataset"]))
     #%%
-    """Regression"""
-    if config["dataset"] == "covtype":
-        target = 'Elevation'
-    elif config["dataset"] == "credit":
-        target = 'AMT_INCOME_TOTAL'
-    elif config["dataset"] == "loan":
-        target = 'Income'
-    else:
-        raise ValueError('Not supported dataset!')
-    #%%
-    # baseline
-    print("\nBaseline: Machine Learning Utility in Regression...\n")
-    base_r2result = regression_eval(train, test, target)
-    wandb.log({'R^2 (Baseline)': np.mean([x[1] for x in base_r2result])})
-    #%%
-    # TVAE
-    print("\nSynthetic: Machine Learning Utility in Regression...\n")
-    r2result = regression_eval(sample_df, test, target)
-    wandb.log({'R^2 (TVAE)': np.mean([x[1] for x in r2result])})
-    #%%
-    # visualization
-    fig = plt.figure(figsize=(5, 4))
-    plt.plot([x[1] for x in base_r2result], 'o--', label='baseline')
-    plt.plot([x[1] for x in r2result], 'o--', label='synthetic')
-    plt.ylim(0, 1)
-    plt.ylabel('$R^2$', fontsize=13)
-    plt.xticks([0, 1, 2], [x[0] for x in base_r2result], fontsize=13)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig('./assets/{}/{}_MLU_regression.png'.format(config["dataset"], config["dataset"]))
-    # plt.show()
-    plt.close()
-    wandb.log({'ML Utility (Regression)': wandb.Image(fig)})
-    #%%
-    """Classification"""
-    if config["dataset"] == "covtype":
-        target = 'Cover_Type'
-    elif config["dataset"] == "credit":
-        target = 'TARGET'
-    elif config["dataset"] == "loan":
-        target = 'Personal Loan'
-    else:
-        raise ValueError('Not supported dataset!')
-    #%%
-    # baseline
-    print("\nBaseline: Machine Learning Utility in Classification...\n")
-    base_f1result = classification_eval(train, test, target)
-    wandb.log({'F1 (Baseline)': np.mean([x[1] for x in base_f1result])})
-    #%%
-    # TVAE
-    print("\nSynthetic: Machine Learning Utility in Classification...\n")
-    f1result = classification_eval(sample_df, test, target)
-    wandb.log({'F1 (TVAE)': np.mean([x[1] for x in f1result])})
-    #%%
-    # visualization
-    fig = plt.figure(figsize=(5, 4))
-    plt.plot([x[1] for x in base_f1result], 'o--', label='baseline')
-    plt.plot([x[1] for x in f1result], 'o--', label='synthetic')
-    plt.ylim(0, 1)
-    plt.ylabel('$F_1$', fontsize=13)
-    plt.xticks([0, 1, 2], [x[0] for x in base_f1result], fontsize=13)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig('./assets/{}/{}_MLU_classification.png'.format(config["dataset"], config["dataset"]))
-    # plt.show()
-    plt.close()
-    wandb.log({'ML Utility (Classification)': wandb.Image(fig)})
+    sample_mean = sample_df[continuous].mean(axis=0)
+    sample_std = sample_df[continuous].std(axis=0)
+    sample_df_scaled = sample_df.copy()
+    sample_df_scaled[continuous] = (sample_df_scaled[continuous] - sample_mean) / sample_std
     #%%
     """Goodness of Fit""" # only continuous
     print("\nGoodness of Fit...\n")
     
-    Dn, W1 = goodness_of_fit(len(continuous), train.to_numpy(), sample_df.to_numpy())
+    Dn, W1 = goodness_of_fit(len(continuous), train.to_numpy(), sample_df_scaled.to_numpy())
     
     print('Goodness of Fit (Kolmogorov): {:.3f}'.format(Dn))
     print('Goodness of Fit (1-Wasserstein): {:.3f}'.format(W1))
@@ -240,7 +179,7 @@ def main():
     """Privacy Preservability""" # only continuous
     print("\nPrivacy Preservability...\n")
     
-    privacy = privacy_metrics(train[continuous], sample_df[continuous])
+    privacy = privacy_metrics(train[continuous], sample_df_scaled[continuous])
     
     DCR = privacy[0, :3]
     print('DCR (R&S): {:.3f}'.format(DCR[0]))
@@ -257,6 +196,103 @@ def main():
     wandb.log({'NNDR (R&S)': NNDR[0]})
     wandb.log({'NNDR (R)': NNDR[1]})
     wandb.log({'NNDR (S)': NNDR[2]})
+    #%%
+    """Regression"""
+    if config["dataset"] == "covtype":
+        target = 'Elevation'
+    elif config["dataset"] == "credit":
+        target = 'AMT_CREDIT'
+    elif config["dataset"] == "loan":
+        target = 'Age'
+    elif config["dataset"] == "adult":
+        target = 'age'
+    elif config["dataset"] == "cabs":
+        target = 'Trip_Distance'
+    elif config["dataset"] == "kings":
+        target = 'long'
+    else:
+        raise ValueError('Not supported dataset!')
+    #%%
+    # standardization except for target variable
+    real_train = train.copy()
+    real_test = test.copy()
+    real_train[target] = real_train[target] * train_std[target] + train_mean[target]
+    real_test[target] = real_test[target] * train_std[target] + train_mean[target]
+    
+    cont = [x for x in continuous if x not in [target]]
+    sample_df_scaled = sample_df.copy()
+    sample_df_scaled[cont] = (sample_df_scaled[cont] - sample_mean[cont]) / sample_std[cont]
+    #%%
+    # baseline
+    print("\nBaseline: Machine Learning Utility in Regression...\n")
+    base_reg = regression_eval(real_train, real_test, target)
+    wandb.log({'MAPE (Baseline)': np.mean([x[1] for x in base_reg])})
+    # wandb.log({'R^2 (Baseline)': np.mean([x[1] for x in base_reg])})
+    #%%
+    # TVAE
+    print("\nSynthetic: Machine Learning Utility in Regression...\n")
+    reg = regression_eval(sample_df_scaled, real_test, target)
+    wandb.log({'MAPE (ITS)': np.mean([x[1] for x in reg])})
+    # wandb.log({'R^2 (ITS)': np.mean([x[1] for x in reg])})
+    #%%
+    # # visualization
+    # fig = plt.figure(figsize=(5, 4))
+    # plt.plot([x[1] for x in base_reg], 'o--', label='baseline')
+    # plt.plot([x[1] for x in reg], 'o--', label='synthetic')
+    # plt.ylim(0, 100)
+    # plt.ylabel('MAPE', fontsize=13)
+    # # plt.ylim(0, 1)
+    # # plt.ylabel('$R^2$', fontsize=13)
+    # plt.xticks([0, 1, 2], [x[0] for x in base_reg], fontsize=13)
+    # plt.legend()
+    # plt.tight_layout()
+    # plt.savefig('./assets/{}/{}_MLU_regression.png'.format(config["dataset"], config["dataset"]))
+    # # plt.show()
+    # plt.close()
+    # wandb.log({'ML Utility (Regression)': wandb.Image(fig)})
+    #%%
+    """Classification"""
+    if config["dataset"] == "covtype":
+        target = 'Cover_Type'
+    elif config["dataset"] == "credit":
+        target = 'TARGET'
+    elif config["dataset"] == "loan":
+        target = 'Personal Loan'
+    elif config["dataset"] == "adult":
+        target = 'income'
+    elif config["dataset"] == "cabs":
+        target = 'Surge_Pricing_Type'
+    elif config["dataset"] == "kings":
+        target = 'condition'
+    else:
+        raise ValueError('Not supported dataset!')
+    #%%
+    # baseline
+    print("\nBaseline: Machine Learning Utility in Classification...\n")
+    base_clf = classification_eval(train, test, target)
+    wandb.log({'F1 (Baseline)': np.mean([x[1] for x in base_clf])})
+    #%%
+    sample_df_scaled = sample_df.copy()
+    sample_df_scaled[continuous] = (sample_df_scaled[continuous] - sample_mean) / sample_std
+    
+    # TVAE
+    print("\nSynthetic: Machine Learning Utility in Classification...\n")
+    clf = classification_eval(sample_df_scaled, test, target)
+    wandb.log({'F1 (ITS)': np.mean([x[1] for x in clf])})
+    #%%
+    # # visualization
+    # fig = plt.figure(figsize=(5, 4))
+    # plt.plot([x[1] for x in base_clf], 'o--', label='baseline')
+    # plt.plot([x[1] for x in clf], 'o--', label='synthetic')
+    # plt.ylim(0, 1)
+    # plt.ylabel('$F_1$', fontsize=13)
+    # plt.xticks([0, 1, 2], [x[0] for x in base_clf], fontsize=13)
+    # plt.legend()
+    # plt.tight_layout()
+    # plt.savefig('./assets/{}/{}_MLU_classification.png'.format(config["dataset"], config["dataset"]))
+    # # plt.show()
+    # plt.close()
+    # wandb.log({'ML Utility (Classification)': wandb.Image(fig)})
     #%%
     wandb.run.finish()
 #%%
