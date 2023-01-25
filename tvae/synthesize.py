@@ -232,8 +232,8 @@ def main():
     # TVAE
     print("\nSynthetic: Machine Learning Utility in Regression...\n")
     reg = regression_eval(sample_df_scaled, real_test, target)
-    wandb.log({'MAPE (ITS)': np.mean([x[1] for x in reg])})
-    # wandb.log({'R^2 (ITS)': np.mean([x[1] for x in reg])})
+    wandb.log({'MAPE': np.mean([x[1] for x in reg])})
+    # wandb.log({'R^2': np.mean([x[1] for x in reg])})
     #%%
     # # visualization
     # fig = plt.figure(figsize=(5, 4))
@@ -278,7 +278,7 @@ def main():
     # TVAE
     print("\nSynthetic: Machine Learning Utility in Classification...\n")
     clf = classification_eval(sample_df_scaled, test, target)
-    wandb.log({'F1 (ITS)': np.mean([x[1] for x in clf])})
+    wandb.log({'F1': np.mean([x[1] for x in clf])})
     #%%
     # # visualization
     # fig = plt.figure(figsize=(5, 4))
