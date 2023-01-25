@@ -53,7 +53,7 @@ def get_args(debug):
     parser.add_argument('--seed', type=int, default=1, 
                         help='seed for repeatable results')
     parser.add_argument('--dataset', type=str, default='covtype', 
-                        help='Dataset options: covtype, credit, loan')
+                        help='Dataset options: covtype, credit, loan, adult, cabs, kings')
 
     parser.add_argument("--latent_dim", default=2, type=int,
                         help="the dimension of latent variable")
