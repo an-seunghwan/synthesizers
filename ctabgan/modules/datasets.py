@@ -9,45 +9,253 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
+
+from .data_preparation import DataPrep
+from .transformer import DataTransformer
 #%%
 def generate_dataset(config):
     
-    if config["dataset"] == 'loan':
-        df = pd.read_csv('./data/Bank_Personal_Loan_Modelling.csv')
-        df = df.sample(frac=1, random_state=1).reset_index(drop=True)
-        df = df.drop(columns=['ID'])
-        
-        continuous = ['CCAvg', 'Mortgage', 'Income', 'Experience', 'Age']
-        df = df[continuous].iloc[:4000]
-
-    elif config["dataset"] == 'adult':
-        df = pd.read_csv('./data/adult.csv')
-        df = df.sample(frac=1, random_state=1).reset_index(drop=True)
-        df = df[(df == '?').sum(axis=1) == 0]
-        df['income'] = df['income'].map({'<=50K': 0, '>50K': 1, '<=50K.': 0, '>50K.': 1})
-        
-        continuous = ['income', 'educational-num', 'capital-gain', 'capital-loss', 'hours-per-week']
-        df = df[continuous].iloc[:4000]
-        
-    elif config["dataset"] == 'covtype':
-        df = pd.read_csv('./data/covtype.csv')
-        df = df.sample(frac=1, random_state=5).reset_index(drop=True)
+    if config["dataset"] == 'covtype':
+        df = pd.read_csv('../data/covtype.csv')
+        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
+        df = df.dropna(axis=0)
+        df = df.iloc[:50000]
         
         continuous = [
+            'Elevation', # target variable
+            'Aspect', 
+            'Slope',
             'Horizontal_Distance_To_Hydrology', 
             'Vertical_Distance_To_Hydrology',
             'Horizontal_Distance_To_Roadways',
+            'Hillshade_9am',
+            'Hillshade_Noon',
+            'Hillshade_3pm',
             'Horizontal_Distance_To_Fire_Points',
-            'Elevation', 
-            'Aspect', 
-            'Slope', 
-            'Cover_Type']
-        df = df[continuous]
+            ]
+        discrete = [
+            'Cover_Type', # target variable
+        ]
+        df = df[continuous + discrete]
+        
+        train = df.iloc[:45000]
+        test = df.iloc[45000:]
+        
+        target_col = 'Cover_Type'
+        data_prep = DataPrep(raw_df=train, categorical=discrete, log=[], mixed={}, 
+                            integer=continuous)
+        target_index = data_prep.df.columns.get_loc(target_col)
+        transformer = DataTransformer(train_data=data_prep.df, 
+                                    categorical_list=data_prep.column_types["categorical"], 
+                                    mixed_dict=data_prep.column_types["mixed"])
+        
+    elif config["dataset"] == 'credit':
+        df = pd.read_csv('../data/application_train.csv')
+        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
+        
+        continuous = [
+            'AMT_INCOME_TOTAL', 
+            'AMT_CREDIT', # target variable
+            'AMT_ANNUITY',
+            'AMT_GOODS_PRICE',
+            'REGION_POPULATION_RELATIVE', 
+            'DAYS_BIRTH', 
+            'DAYS_EMPLOYED', 
+            'DAYS_REGISTRATION',
+            'DAYS_ID_PUBLISH',
+            'OWN_CAR_AGE',
+        ]
+        discrete = [
+            'NAME_CONTRACT_TYPE',
+            'CODE_GENDER',
+            # 'FLAG_OWN_CAR',
+            'FLAG_OWN_REALTY',
+            'NAME_TYPE_SUITE',
+            'NAME_INCOME_TYPE',
+            'NAME_EDUCATION_TYPE',
+            'NAME_FAMILY_STATUS',
+            'NAME_HOUSING_TYPE',
+            'TARGET', # target variable
+        ]
+        df = df[continuous + discrete]
         df = df.dropna(axis=0)
-        df = df.iloc[2000:]
+        df = df.iloc[:50000]
+        
+        train = df.iloc[:45000]
+        test = df.iloc[45000:]
+        
+        target_col = 'TARGET'
+        data_prep = DataPrep(raw_df=train, categorical=discrete, log=[], mixed={}, 
+                            integer=['DAYS_BIRTH', 
+                                    'DAYS_EMPLOYED', 
+                                    'DAYS_REGISTRATION',
+                                    'DAYS_ID_PUBLISH',])
+        target_index = data_prep.df.columns.get_loc(target_col)
+        transformer = DataTransformer(train_data=data_prep.df, 
+                                    categorical_list=data_prep.column_types["categorical"], 
+                                    mixed_dict=data_prep.column_types["mixed"])
+        
+    elif config["dataset"] == 'loan':
+        df = pd.read_csv('../data/Bank_Personal_Loan_Modelling.csv')
+        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
+        
+        continuous = [
+            'Age', # target variable
+            'Experience',
+            'Income', 
+            'CCAvg',
+            'Mortgage',
+        ]
+        discrete = [
+            'Family',
+            'Personal Loan', # target variable
+            'Securities Account',
+            'CD Account',
+            'Online',
+            'CreditCard'
+        ]
+        df = df[continuous + discrete]
+        df = df.dropna()
+        
+        train = df.iloc[:4000]
+        test = df.iloc[4000:]
+        
+        target_col = 'Personal Loan'
+        data_prep = DataPrep(raw_df=train, categorical=discrete, log=[], mixed={}, 
+                            integer=['Age', 
+                                    'Experience',
+                                    'Income', 
+                                    'Mortgage',])
+        target_index = data_prep.df.columns.get_loc(target_col)
+        transformer = DataTransformer(train_data=data_prep.df, 
+                                    categorical_list=data_prep.column_types["categorical"], 
+                                    mixed_dict=data_prep.column_types["mixed"])
+        
+    elif config["dataset"] == 'adult':
+        df = pd.read_csv('../data/adult.csv')
+        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
+        df = df[(df == '?').sum(axis=1) == 0]
+        
+        continuous = [
+            'age', # target variable
+            'educational-num',
+            'capital-gain', 
+            'capital-loss', 
+            'hours-per-week',
+        ]
+        discrete = [
+            'workclass',
+            'education',
+            'marital-status',
+            'occupation',
+            'relationship',
+            'race',
+            'gender',
+            'native-country',
+            'income', # target variable
+        ]
+        df = df[continuous + discrete]
+        df = df.dropna()
+        
+        train = df.iloc[:40000]
+        test = df.iloc[40000:]
+        
+        target_col = 'income'
+        data_prep = DataPrep(raw_df=train, categorical=discrete, log=[], mixed={}, 
+                            integer=continuous)
+        target_index = data_prep.df.columns.get_loc(target_col)
+        transformer = DataTransformer(train_data=data_prep.df, 
+                                    categorical_list=data_prep.column_types["categorical"], 
+                                    mixed_dict=data_prep.column_types["mixed"])
+        
+    elif config["dataset"] == 'cabs':
+        df = pd.read_csv('../data/sigma_cabs.csv')
+        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
+        df = df.dropna().reset_index().drop(columns='index')
+        
+        continuous = [
+            'Trip_Distance', # target variable
+            'Life_Style_Index', 
+            'Customer_Rating', 
+            'Var1',
+            'Var2',
+            'Var3',
+        ]
+        discrete = [
+            'Type_of_Cab',
+            'Customer_Since_Months',
+            'Confidence_Life_Style_Index',
+            'Destination_Type',
+            'Cancellation_Last_1Month',
+            'Gender',
+            'Surge_Pricing_Type', # target variable
+        ]
+        df = df[continuous + discrete]
+        
+        train = df.iloc[:40000]
+        test = df.iloc[40000:]
+        
+        target_col = 'Surge_Pricing_Type'
+        data_prep = DataPrep(raw_df=train, categorical=discrete, log=[], mixed={}, 
+                            integer=['Var2', 'Var3'])
+        target_index = data_prep.df.columns.get_loc(target_col)
+        transformer = DataTransformer(train_data=data_prep.df, 
+                                    categorical_list=data_prep.column_types["categorical"], 
+                                    mixed_dict=data_prep.column_types["mixed"])
+        
+    elif config["dataset"] == 'kings':
+        df = pd.read_csv('../data/kc_house_data.csv')
+        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
+        
+        continuous = [
+            'price', 
+            'sqft_living',
+            'sqft_lot',
+            'sqft_above',
+            'sqft_basement',
+            'yr_built',
+            'yr_renovated',
+            'lat',
+            'long', # target variable
+            'sqft_living15',
+            'sqft_lot15',
+        ]
+        discrete = [
+            'bedrooms',
+            'bathrooms',
+            'floors',
+            'waterfront',
+            'view',
+            'condition', # target variable
+            'grade', 
+        ]
+        df = df[continuous + discrete]
+        
+        train = df.iloc[:20000]
+        test = df.iloc[20000:]
+        
+        target_col = 'condition'
+        data_prep = DataPrep(raw_df=train, categorical=discrete, log=[], mixed={}, 
+                            integer=['sqft_living',
+                                    'sqft_lot',
+                                    'sqft_above',
+                                    'sqft_basement',
+                                    'yr_built',
+                                    'yr_renovated',
+                                    'sqft_living15',
+                                    'sqft_lot15',])
+        target_index = data_prep.df.columns.get_loc(target_col)
+        transformer = DataTransformer(train_data=data_prep.df, 
+                                    categorical_list=data_prep.column_types["categorical"], 
+                                    mixed_dict=data_prep.column_types["mixed"])
         
     else:
         raise ValueError('Not supported dataset!')    
 
-    return df
+    transformer.fit() 
+    train_data = transformer.transform(data_prep.df.values)
+    # storing column size of the transformed training data
+    data_dim = transformer.output_dim
+    
+    return train_data, transformer, data_dim, target_index, train, test, continuous, discrete
 #%%
