@@ -93,9 +93,6 @@ def main():
     if config["cuda"]:
         torch.cuda.manual_seed(config["seed"])
     #%%
-    if not os.path.exists('./assets/{}'.format(config["dataset"])):
-        os.makedirs('./assets/{}'.format(config["dataset"]))
-        
     """dataset"""
     train_data, transformer, data_dim, target_index, _, _, _, _ = generate_dataset(config)
     #%%
