@@ -2,6 +2,9 @@
 import os
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 #%%
 import numpy as np
 import pandas as pd
@@ -16,9 +19,9 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
 
+from evaluation.simulation import set_random_seed
 from modules.datasets import generate_dataset
-from modules.data_preparation import DataPrep
-from modules.transformer import DataTransformer, ImageTransformer
+from modules.transformer import ImageTransformer
 from modules.synthesizer import *
 from modules.train import train
 #%%
@@ -34,9 +37,9 @@ except:
     import wandb
 
 run = wandb.init(
-    project="CausalDisentangled", 
+    project="DistVAE", 
     entity="anseunghwan",
-    tags=["Tabular", "CTAB-GAN"],
+    tags=["CTAB-GAN"],
 )
 #%%
 import argparse
@@ -53,14 +56,14 @@ def get_args(debug):
     
     parser.add_argument('--seed', type=int, default=1, 
                         help='seed for repeatable results')
-    parser.add_argument('--dataset', type=str, default='loan', 
-                        help='Dataset options: loan, adult, covtype')
+    parser.add_argument('--dataset', type=str, default='covtype', 
+                        help='Dataset options: covtype, credit, loan, adult, cabs, kings')
 
-    parser.add_argument("--latent_dim", default=3, type=int,
+    parser.add_argument("--latent_dim", default=2, type=int,
                         help="size of the noise vector fed to the generator")
-    parser.add_argument("--num_channels", default=64, type=int, 
+    parser.add_argument("--num_channels", default=4, type=int, 
                         help="no. of channels for deciding respective hidden layers of discriminator and generator networks")
-    parser.add_argument('--class_dim', default=[256, 256, 256, 256], type=arg_as_list, 
+    parser.add_argument('--class_dim', default=[32, 32, 32, 32], type=arg_as_list, 
                         help='list containing dimensionality of hidden layers for the classifier network')
     
     # optimization options
@@ -91,56 +94,7 @@ def main():
         torch.cuda.manual_seed(config["seed"])
     #%%
     """dataset"""
-    df = generate_dataset(config)
-
-    if config["dataset"] == 'loan':
-        config["latent_dim"] = 3
-        target_index = None
-        data_prep = DataPrep(raw_df=df, categorical=[], log=[], mixed={}, 
-                            integer=['Mortgage', 'Income', 'Experience', 'Age'])
-        transformer = DataTransformer(train_data=data_prep.df, 
-                                    categorical_list=data_prep.column_types["categorical"], 
-                                    mixed_dict=data_prep.column_types["mixed"])
-
-    elif config["dataset"] == 'adult':
-        config["latent_dim"] = 3
-        target_col = 'income'
-        data_prep = DataPrep(raw_df=df, 
-                            categorical=['income'], 
-                            log=[], 
-                            mixed={'capital-loss':[0.0], 'capital-gain':[0.0]},  
-                            integer=['age', 'capital-gain', 'capital-loss','hours-per-week'])
-        target_index = data_prep.df.columns.get_loc(target_col)
-        transformer = DataTransformer(train_data=data_prep.df, 
-                                    categorical_list=data_prep.column_types["categorical"], 
-                                    mixed_dict=data_prep.column_types["mixed"])
-
-    elif config["dataset"] == 'covtype':
-        config["latent_dim"] = 6
-        target_col = 'Cover_Type'
-        data_prep = DataPrep(raw_df=df, 
-                            categorical=['Cover_Type'], 
-                            log=[], 
-                            mixed={},  
-                            integer=['Horizontal_Distance_To_Hydrology', 
-                                    'Vertical_Distance_To_Hydrology',
-                                    'Horizontal_Distance_To_Roadways',
-                                    'Horizontal_Distance_To_Fire_Points',
-                                    'Elevation', 
-                                    'Aspect', 
-                                    'Slope'])
-        target_index = data_prep.df.columns.get_loc(target_col)
-        transformer = DataTransformer(train_data=data_prep.df, 
-                                    categorical_list=data_prep.column_types["categorical"], 
-                                    mixed_dict=data_prep.column_types["mixed"])
-        
-    else:
-        raise ValueError('Not supported dataset!')
-
-    transformer.fit() 
-    train_data = transformer.transform(data_prep.df.values)
-    # storing column size of the transformed training data
-    data_dim = transformer.output_dim
+    train_data, transformer, data_dim, target_index, _, _, _, _ = generate_dataset(config)
     #%%
     """model setting"""
     # initializing the sampler object to execute training-by-sampling 
@@ -201,6 +155,13 @@ def main():
     Gtransformer = ImageTransformer(gside)       
     Dtransformer = ImageTransformer(dside)
     #%%
+    count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
+    num_params = count_parameters(generator) + count_parameters(discriminator)
+    print("Number of Parameters:", num_params)
+    
+    num_params = count_parameters(classifier)
+    print("Number of Parameters:", num_params)
+    #%%
     """training"""
     for epoch in range(config["epochs"]):
         logs = train(
@@ -238,7 +199,6 @@ def main():
     artifact.add_file('./modules/synthesizer.py')
     wandb.log_artifact(artifact)
     #%%
-    wandb.config.update(config, allow_val_change=True)
     wandb.run.finish()
 #%%
 if __name__ == '__main__':
