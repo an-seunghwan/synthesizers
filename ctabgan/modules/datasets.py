@@ -257,5 +257,5 @@ def generate_dataset(config):
     # storing column size of the transformed training data
     data_dim = transformer.output_dim
     
-    return train_data, transformer, data_dim, target_index, train, test, continuous, discrete
+    return train_data, transformer, data_dim, target_index, data_prep, train, test, continuous, discrete
 #%%

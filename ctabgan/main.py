@@ -94,7 +94,7 @@ def main():
         torch.cuda.manual_seed(config["seed"])
     #%%
     """dataset"""
-    train_data, transformer, data_dim, target_index, _, _, _, _ = generate_dataset(config)
+    train_data, transformer, data_dim, target_index, _, _, _, _, _ = generate_dataset(config)
     #%%
     """model setting"""
     # initializing the sampler object to execute training-by-sampling 
