@@ -2,6 +2,9 @@
 import os
 # os.environ['KMP_DUPLICATE_LIB_OK']='True'
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 #%%
 import numpy as np
 import pandas as pd
@@ -16,10 +19,10 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
 
-from modules.simulation import set_random_seed
+from evaluation.simulation import set_random_seed
 from modules.model import TVAE
 from modules.datasets import generate_dataset
-from modules.evaluation import (
+from evaluation.evaluation import (
     regression_eval,
     classification_eval,
     goodness_of_fit,

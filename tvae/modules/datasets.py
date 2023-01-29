@@ -15,7 +15,7 @@ from .data_transformer import DataTransformer
 def generate_dataset(config, device, random_state=0):
     
     if config["dataset"] == 'covtype':
-        df = pd.read_csv('./data/covtype.csv')
+        df = pd.read_csv('../data/covtype.csv')
         df = df.sample(frac=1, random_state=0).reset_index(drop=True)
         df = df.dropna(axis=0)
         df = df.iloc[:50000]
@@ -45,7 +45,7 @@ def generate_dataset(config, device, random_state=0):
         train_data = transformer.transform(train)
     
     elif config["dataset"] == 'credit':
-        df = pd.read_csv('./data/application_train.csv')
+        df = pd.read_csv('../data/application_train.csv')
         df = df.sample(frac=1, random_state=0).reset_index(drop=True)
         
         continuous = [
@@ -84,7 +84,7 @@ def generate_dataset(config, device, random_state=0):
         train_data = transformer.transform(train)
         
     elif config["dataset"] == 'loan':
-        df = pd.read_csv('./data/Bank_Personal_Loan_Modelling.csv')
+        df = pd.read_csv('../data/Bank_Personal_Loan_Modelling.csv')
         df = df.sample(frac=1, random_state=0).reset_index(drop=True)
         
         continuous = [
@@ -113,7 +113,7 @@ def generate_dataset(config, device, random_state=0):
         train_data = transformer.transform(train)
         
     elif config["dataset"] == 'adult':
-        df = pd.read_csv('./data/adult.csv')
+        df = pd.read_csv('../data/adult.csv')
         df = df.sample(frac=1, random_state=0).reset_index(drop=True)
         df = df[(df == '?').sum(axis=1) == 0]
         
@@ -146,7 +146,7 @@ def generate_dataset(config, device, random_state=0):
         train_data = transformer.transform(train)
         
     elif config["dataset"] == 'cabs':
-        df = pd.read_csv('./data/sigma_cabs.csv')
+        df = pd.read_csv('../data/sigma_cabs.csv')
         df = df.sample(frac=1, random_state=0).reset_index(drop=True)
         df = df.dropna().reset_index().drop(columns='index')
         
@@ -177,7 +177,7 @@ def generate_dataset(config, device, random_state=0):
         train_data = transformer.transform(train)
         
     elif config["dataset"] == 'kings':
-        df = pd.read_csv('./data/kc_house_data.csv')
+        df = pd.read_csv('../data/kc_house_data.csv')
         df = df.sample(frac=1, random_state=0).reset_index(drop=True)
         
         continuous = [
