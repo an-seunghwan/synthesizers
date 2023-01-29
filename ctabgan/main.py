@@ -125,8 +125,8 @@ def main():
                                     config["num_channels"])
     layers_D = determine_layers_disc(dside, 
                                     config["num_channels"])
-    generator = Generator(layers_G)
-    discriminator = Discriminator(layers_D)
+    generator = Generator(layers_G).to(device)
+    discriminator = Discriminator(layers_D).to(device)
 
     # assigning the respective optimizers for the generator and discriminator networks
     optimizer_params = dict(lr=config["lr"], 
@@ -144,7 +144,7 @@ def main():
         # obtaining the one-hot-encoding starting and ending positions of the target column in the transformed data
         st_ed = get_st_ed(target_index, transformer.output_info)
         # configuring the classifier network and it's optimizer accordingly 
-        classifier = Classifier(data_dim, config["class_dim"], st_ed)
+        classifier = Classifier(data_dim, config["class_dim"], st_ed).to(device)
         optimizerC = optim.Adam(classifier.parameters(),**optimizer_params)
 
     # initializing learnable parameters of the discrimnator and generator networks  
