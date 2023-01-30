@@ -20,26 +20,27 @@ from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
 
 from evaluation.simulation import set_random_seed
-from modules.model import TVAE
+from modules.model import *
+from modules.data_sampler import *
 from modules.datasets import generate_dataset
 from modules.train import train
 #%%
-import sys
-import subprocess
-try:
-    import wandb
-except:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "wandb"])
-    with open("./wandb_api.txt", "r") as f:
-        key = f.readlines()
-    subprocess.run(["wandb", "login"], input=key[0], encoding='utf-8')
-    import wandb
+# import sys
+# import subprocess
+# try:
+#     import wandb
+# except:
+#     subprocess.check_call([sys.executable, "-m", "pip", "install", "wandb"])
+#     with open("./wandb_api.txt", "r") as f:
+#         key = f.readlines()
+#     subprocess.run(["wandb", "login"], input=key[0], encoding='utf-8')
+#     import wandb
 
-run = wandb.init(
-    project="DistVAE", 
-    entity="anseunghwan",
-    tags=["TVAE"],
-)
+# run = wandb.init(
+#     project="DistVAE", 
+#     entity="anseunghwan",
+#     tags=["CTGAN"],
+# )
 #%%
 import argparse
 import ast
@@ -62,16 +63,27 @@ def get_args(debug):
                         help="the dimension of latent variable")
     
     # optimization options
-    parser.add_argument('--epochs', default=200, type=int,
+    parser.add_argument('--epochs', default=300, type=int,
                         help='maximum iteration')
     parser.add_argument('--batch_size', default=256, type=int,
                         help='batch size')
-    parser.add_argument('--lr', default=0.005, type=float,
-                        help='learning rate')
-    parser.add_argument('--weight_decay', default=1e-5, type=float, 
-                        help='weight decay parameter')
-    parser.add_argument('--sigma_range', default=[0.1, 1], type=arg_as_list,
-                        help='range of observational noise')
+    
+    parser.add_argument('--generator_lr', type=float, default=2e-4,
+                        help='Learning rate for the generator.')
+    parser.add_argument('--discriminator_lr', type=float, default=2e-4,
+                        help='Learning rate for the discriminator.')
+
+    parser.add_argument('--generator_decay', type=float, default=1e-6,
+                        help='Weight decay for the generator.')
+    parser.add_argument('--discriminator_decay', type=float, default=0,
+                        help='Weight decay for the discriminator.')
+
+    parser.add_argument('--generator_dim', type=str, default='256,256',
+                        help='Dimension of each generator layer. '
+                        'Comma separated integers with no whitespaces.')
+    parser.add_argument('--discriminator_dim', type=str, default='256,256',
+                        help='Dimension of each discriminator layer. '
+                        'Comma separated integers with no whitespaces.')
     
     if debug:
         return parser.parse_args(args=[])
@@ -80,10 +92,10 @@ def get_args(debug):
 #%%
 def main():
     #%%
-    config = vars(get_args(debug=False)) # default configuration
+    config = vars(get_args(debug=True)) # default configuration
     config["cuda"] = torch.cuda.is_available()
     device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
-    wandb.config.update(config)
+    # wandb.config.update(config)
     
     set_random_seed(config["seed"])
     torch.manual_seed(config["seed"])
@@ -91,19 +103,48 @@ def main():
         torch.cuda.manual_seed(config["seed"])
     #%%
     """dataset"""
-    dataset, dataloader, transformer, _, _, _, _ = generate_dataset(config, device, random_state=0)
+    train_data, dataset, dataloader, transformer, train_, _, _, discrete = generate_dataset(config, device, random_state=0)
     
-    config["input_dim"] = transformer.output_dimensions
+    assert validate_discrete_columns(train_, discrete) is None
     #%%
-    model = TVAE(config, device).to(device)
+    """training-by-sampling"""
+    data_sampler = DataSampler(
+        train_data,
+        transformer.output_info_list,
+        log_frequency=True)
 
-    optimizer = torch.optim.Adam(
-        model.parameters(), 
-        lr=config["lr"],
-        weight_decay=config["weight_decay"]
-    )
+    config["data_dim"] = transformer.output_dimensions
+    #%%
+    generator_dim = [int(x) for x in config["generator_dim"].split(',')]
+    discriminator_dim = [int(x) for x in config["discriminator_dim"].split(',')]
     
-    model.train()
+    generator = Generator(
+        config["latent_dim"] + data_sampler.dim_cond_vec(),
+        generator_dim,
+        config["data_dim"]
+    ).to(device)
+    
+    discriminator = Discriminator(
+        config["data_dim"] + data_sampler.dim_cond_vec(),
+        discriminator_dim,
+        pac=10
+    ).to(device)
+
+    optimizerG = optim.Adam(
+        generator.parameters(), lr=config["generator_lr"], 
+        betas=(0.5, 0.9), weight_decay=config["generator_decay"]
+    )
+
+    optimizerD = optim.Adam(
+        discriminator.parameters(), lr=config["discriminator_lr"],
+        betas=(0.5, 0.9), weight_decay=config["discriminator_decay"]
+    )
+
+    mean = torch.zeros(config["batch_size"], config["latent_dim"], device=device)
+    std = mean + 1
+    
+    print(generator.train())
+    print(discriminator.train())
     #%%
     for epoch in range(config["epochs"]):
         logs = train(transformer.output_info_list, dataset, dataloader, model, config, optimizer, device)
