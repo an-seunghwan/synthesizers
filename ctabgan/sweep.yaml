@@ -1,15 +1,14 @@
 project: DistVAE
-program: main.py
-# program: synthesize.py
+# program: main.py
+program: synthesize.py
 method: grid
-metric:
-  goal: minimize
-  name: loss
+# metric:
+#   goal: minimize
+#   name: loss
 parameters:
-  seed:
+  num:
     values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-  dataset:
-    values: ['covtype']
-    # values: ['covtype', 'credit', 'adult', 'loan', 'cabs', 'kings']
-  # num:
+  # seed:
   #   values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  dataset:
+    values: ['covtype', 'credit', 'adult', 'loan', 'cabs', 'kings']
