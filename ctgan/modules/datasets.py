@@ -217,5 +217,5 @@ def generate_dataset(config, device, random_state=0):
     dataset = TensorDataset(torch.from_numpy(train_data.astype('float32')).to(device))
     dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True, drop_last=False)
     
-    return dataset, dataloader, transformer, train, test, continuous, discrete
+    return train_data, dataset, dataloader, transformer, train, test, continuous, discrete
 #%%
