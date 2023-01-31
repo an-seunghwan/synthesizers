@@ -86,7 +86,7 @@ def get_args(debug):
     parser.add_argument('--generator_dim', type=str, default='16,16',
                         help='Dimension of each generator layer. '
                         'Comma separated integers with no whitespaces.')
-    parser.add_argument('--discriminator_dim', type=str, default='8,4',
+    parser.add_argument('--discriminator_dim', type=str, default='12,12',
                         help='Dimension of each discriminator layer. '
                         'Comma separated integers with no whitespaces.')
     
