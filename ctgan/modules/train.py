@@ -51,7 +51,7 @@ def train(generator, discriminator,
 
     steps_per_epoch = max(len(train_data) // config["batch_size"], 1)
     
-    for id_ in range(steps_per_epoch):
+    for id_ in tqdm.tqdm(range(steps_per_epoch), desc="inner loop"):
         
         loss_ = []
         
