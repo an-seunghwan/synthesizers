@@ -25,22 +25,22 @@ from modules.data_sampler import *
 from modules.datasets import generate_dataset
 from modules.train import train
 #%%
-# import sys
-# import subprocess
-# try:
-#     import wandb
-# except:
-#     subprocess.check_call([sys.executable, "-m", "pip", "install", "wandb"])
-#     with open("./wandb_api.txt", "r") as f:
-#         key = f.readlines()
-#     subprocess.run(["wandb", "login"], input=key[0], encoding='utf-8')
-#     import wandb
+import sys
+import subprocess
+try:
+    import wandb
+except:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "wandb"])
+    with open("./wandb_api.txt", "r") as f:
+        key = f.readlines()
+    subprocess.run(["wandb", "login"], input=key[0], encoding='utf-8')
+    import wandb
 
-# run = wandb.init(
-#     project="DistVAE", 
-#     entity="anseunghwan",
-#     tags=["CTGAN"],
-# )
+run = wandb.init(
+    project="DistVAE", 
+    entity="anseunghwan",
+    tags=["CTGAN"],
+)
 #%%
 import argparse
 import ast
@@ -65,7 +65,7 @@ def get_args(debug):
     # optimization options
     parser.add_argument('--epochs', default=300, type=int,
                         help='maximum iteration')
-    parser.add_argument('--batch_size', default=256, type=int,
+    parser.add_argument('--batch_size', default=500, type=int,
                         help='batch size')
     
     parser.add_argument('--generator_lr', type=float, default=2e-4,
@@ -78,12 +78,22 @@ def get_args(debug):
     parser.add_argument('--discriminator_decay', type=float, default=0,
                         help='Weight decay for the discriminator.')
 
-    parser.add_argument('--generator_dim', type=str, default='256,256',
+    parser.add_argument('--generator_dim', type=str, default='16,16',
                         help='Dimension of each generator layer. '
                         'Comma separated integers with no whitespaces.')
-    parser.add_argument('--discriminator_dim', type=str, default='256,256',
+    parser.add_argument('--discriminator_dim', type=str, default='8,4',
                         help='Dimension of each discriminator layer. '
                         'Comma separated integers with no whitespaces.')
+    
+    parser.add_argument('--pac', type=int, default=10,
+                        help='Number of samples to group together when applying the discriminator.')
+    parser.add_argument('--discriminator_steps', type=int, default=1,
+                        help='Number of discriminator updates to do for each generator update.'
+                            'From the WGAN paper: https://arxiv.org/abs/1701.07875. WGAN paper'
+                            'default is 5. Default used is 1 to match original CTGAN implementation.')
+    parser.add_argument('--log_frequency', action='store_false',
+                        help='Whether to use log frequency of categorical levels in conditional sampling.'
+                            'Defaults to True.')
     
     if debug:
         return parser.parse_args(args=[])
@@ -92,10 +102,10 @@ def get_args(debug):
 #%%
 def main():
     #%%
-    config = vars(get_args(debug=True)) # default configuration
+    config = vars(get_args(debug=False)) # default configuration
     config["cuda"] = torch.cuda.is_available()
     device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
-    # wandb.config.update(config)
+    wandb.config.update(config)
     
     set_random_seed(config["seed"])
     torch.manual_seed(config["seed"])
@@ -111,10 +121,11 @@ def main():
     data_sampler = DataSampler(
         train_data,
         transformer.output_info_list,
-        log_frequency=True)
+        config["log_frequency"])
 
     config["data_dim"] = transformer.output_dimensions
     #%%
+    """model"""
     generator_dim = [int(x) for x in config["generator_dim"].split(',')]
     discriminator_dim = [int(x) for x in config["discriminator_dim"].split(',')]
     
@@ -127,7 +138,7 @@ def main():
     discriminator = Discriminator(
         config["data_dim"] + data_sampler.dim_cond_vec(),
         discriminator_dim,
-        pac=10
+        pac=config["pac"]
     ).to(device)
 
     optimizerG = optim.Adam(
@@ -146,8 +157,18 @@ def main():
     print(generator.train())
     print(discriminator.train())
     #%%
+    """number of parameters"""
+    count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
+    num_params = count_parameters(generator) + count_parameters(discriminator)
+    print("Number of Parameters:", num_params)
+    #%%
+    """training"""
     for epoch in range(config["epochs"]):
-        logs = train(transformer.output_info_list, dataset, dataloader, model, config, optimizer, device)
+        logs = train(generator, discriminator, 
+                    optimizerG, optimizerD,
+                    train_data, data_sampler, transformer,
+                    config, mean, std, 
+                    device)
         
         print_input = "[epoch {:03d}]".format(epoch + 1)
         print_input += ''.join([', {}: {:.4f}'.format(x, np.mean(y)) for x, y in logs.items()])
@@ -157,11 +178,11 @@ def main():
         wandb.log({x : np.mean(y) for x, y in logs.items()})
     #%%
     """model save"""
-    torch.save(model.state_dict(), './assets/TVAE_{}.pth'.format(config["dataset"]))
-    artifact = wandb.Artifact('TVAE_{}'.format(config["dataset"]), 
+    torch.save(generator.state_dict(), './assets/CTGAN_{}.pth'.format(config["dataset"]))
+    artifact = wandb.Artifact('CTGAN_{}'.format(config["dataset"]), 
                             type='model',
                             metadata=config) # description=""
-    artifact.add_file('./assets/TVAE_{}.pth'.format(config["dataset"]))
+    artifact.add_file('./assets/CTGAN_{}.pth'.format(config["dataset"]))
     artifact.add_file('./main.py')
     artifact.add_file('./modules/model.py')
     wandb.log_artifact(artifact)
