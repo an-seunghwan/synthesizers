@@ -20,8 +20,10 @@ from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
 
 from evaluation.simulation import set_random_seed
-from modules.model import TVAE
+from modules.model import *
+from modules.data_sampler import *
 from modules.datasets import generate_dataset
+
 from evaluation.evaluation import (
     regression_eval,
     classification_eval,
@@ -43,7 +45,7 @@ except:
 run = wandb.init(
     project="DistVAE", 
     entity="anseunghwan",
-    tags=['TVAE', 'Synthetic'],
+    tags=['CTGAN', 'Synthetic'],
 )
 #%%
 import argparse
@@ -66,7 +68,7 @@ def main():
     
     """model load"""
     artifact = wandb.use_artifact(
-        'anseunghwan/DistVAE/TVAE_{}:v{}'.format(config["dataset"], config["num"]), type='model')
+        'anseunghwan/DistVAE/CTGAN_{}:v{}'.format(config["dataset"], config["num"]), type='model')
     for key, item in artifact.metadata.items():
         config[key] = item
     model_dir = artifact.download()
@@ -80,32 +82,43 @@ def main():
     if config["cuda"]:
         torch.cuda.manual_seed(config["seed"])
     #%%
+    """dataset"""
+    train_data, dataset, dataloader, transformer, train, test, continuous, discrete = generate_dataset(config, device, random_state=0)
+    
+    assert validate_discrete_columns(train, discrete) is None
+    #%%
+    """training-by-sampling"""
+    data_sampler = DataSampler(
+        train_data,
+        transformer.output_info_list,
+        config["log_frequency"])
+
+    config["data_dim"] = transformer.output_dimensions
+    #%%
     """model"""
-    model = TVAE(config, device).to(device)
+    generator_dim = [int(x) for x in config["generator_dim"].split(',')]
+    
+    generator = Generator(
+        config["latent_dim"] + data_sampler.dim_cond_vec(),
+        generator_dim,
+        config["data_dim"]
+    ).to(device)
     
     if config["cuda"]:
         model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
-        model.load_state_dict(
+        generator.load_state_dict(
             torch.load(
                 model_dir + '/' + model_name))
     else:
         model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
-        model.load_state_dict(
+        generator.load_state_dict(
             torch.load(
                 model_dir + '/' + model_name, map_location=torch.device('cpu')))
     
-    model.eval()
+    generator.eval()
     #%%
-    """Number of Parameters"""
-    count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
-    num_params = count_parameters(model)
-    print("Number of Parameters:", num_params)
-    wandb.log({'Number of Parameters': num_params})
-    #%%
-    """dataset"""
-    _, _, transformer, train, test, continuous, discrete = generate_dataset(config, device, random_state=0)
-    
-    config["input_dim"] = transformer.output_dimensions
+    if not os.path.exists('./assets/{}'.format(config["dataset"])):
+        os.makedirs('./assets/{}'.format(config["dataset"]))
     #%%
     # preprocess
     train_mean = train[continuous].mean(axis=0)
@@ -142,27 +155,33 @@ def main():
     #%%
     """synthetic dataset"""
     torch.manual_seed(config["seed"])
-    steps = len(train) // config["batch_size"] + 1
-    data = []
-    with torch.no_grad():
-        for _ in range(steps):
-            mean = torch.zeros(config["batch_size"], config["latent_dim"])
-            std = mean + 1
-            noise = torch.normal(mean=mean, std=std).to(device)
-            fake = model.decoder(noise)
-            fake = torch.tanh(fake)
-            data.append(fake.numpy())
-    data = np.concatenate(data, axis=0)
-    data = data[:len(train)]
-    sample_df = transformer.inverse_transform(data, model.sigma.detach().cpu().numpy())
+    n = len(train)
     
+    steps = n // config["batch_size"] + 1
+    data = []
+    for i in range(steps):
+        mean = torch.zeros(config["batch_size"], config["latent_dim"])
+        std = mean + 1
+        fakez = torch.normal(mean=mean, std=std).to(device)
+        
+        condvec = data_sampler.sample_original_condvec(config["batch_size"])
+        c1 = condvec
+        c1 = torch.from_numpy(c1).to(device)
+        fakez = torch.cat([fakez, c1], dim=1)
+
+        fake = generator(fakez)
+        fakeact = apply_activate(fake, transformer, generator._gumbel_softmax)
+        data.append(fakeact.detach().cpu().numpy())
+
+    data = np.concatenate(data, axis=0)
+    data = data[:n]
+
+    sample_df = transformer.inverse_transform(data)
+    #%%
     df_dummy = []
     for d in discrete:
         df_dummy.append(pd.get_dummies(sample_df[d], prefix=d))
     sample_df = pd.concat([sample_df.drop(columns=discrete)] + df_dummy, axis=1)
-    #%%
-    if not os.path.exists('./assets/{}'.format(config["dataset"])):
-        os.makedirs('./assets/{}'.format(config["dataset"]))
     #%%
     sample_mean = sample_df[continuous].mean(axis=0)
     sample_std = sample_df[continuous].std(axis=0)
@@ -232,7 +251,7 @@ def main():
     wandb.log({'MARE (Baseline)': np.mean([x[1] for x in base_reg])})
     # wandb.log({'R^2 (Baseline)': np.mean([x[1] for x in base_reg])})
     #%%
-    # TVAE
+    # CTGAN
     print("\nSynthetic: Machine Learning Utility in Regression...\n")
     reg = regression_eval(sample_df_scaled, real_test, target)
     wandb.log({'MARE': np.mean([x[1] for x in reg])})
@@ -277,10 +296,16 @@ def main():
     sample_df_scaled = sample_df.copy()
     sample_df_scaled[continuous] = (sample_df_scaled[continuous] - sample_mean) / sample_std
     
-    # TVAE
+    # CTGAN
     print("\nSynthetic: Machine Learning Utility in Classification...\n")
     clf = classification_eval(sample_df_scaled, test, target)
     wandb.log({'F1': np.mean([x[1] for x in clf])})
+    #%%
+    # plt.bar(np.arange(7) - 0.17, train.describe().loc['mean'][-7:],
+    #         width=0.3, label="train")
+    # plt.bar(np.arange(7) + 0.17, sample_df_scaled.describe().loc['mean'][-7:],
+    #         width=0.3, label="synthetic")
+    # plt.legend()
     #%%
     # # visualization
     # fig = plt.figure(figsize=(5, 4))
