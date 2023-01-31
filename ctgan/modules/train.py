@@ -1,4 +1,9 @@
 #%%
+"""
+Reference:
+[1] https://github.com/sdv-dev/CTGAN/blob/master/ctgan/synthesizers/ctgan.py
+"""
+#%%
 import tqdm
 
 import numpy as np

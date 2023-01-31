@@ -1,4 +1,3 @@
-"""DataSampler module."""
 """
 Reference:
 [1] https://github.com/sdv-dev/CTGAN/blob/master/ctgan/data_sampler.py

@@ -1,6 +1,5 @@
 #%%
 """
-DataTransformer module
 Reference:
 [1] https://github.com/sdv-dev/CTGAN/blob/master/ctgan/data_transformer.py
 """

@@ -1,4 +1,9 @@
 #%%
+"""
+Reference:
+[1] https://github.com/sdv-dev/CTGAN/blob/master/ctgan/synthesizers/ctgan.py
+"""
+#%%
 import os
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
