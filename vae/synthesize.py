@@ -20,7 +20,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
 
 from evaluation.simulation import set_random_seed
-from modules.model import TVAE
+from modules.model import VAE
 from modules.datasets import generate_dataset
 from evaluation.evaluation import (
     regression_eval,
@@ -43,7 +43,7 @@ except:
 run = wandb.init(
     project="DistVAE", 
     entity="anseunghwan",
-    tags=['TVAE', 'Synthetic'],
+    tags=['VAE', 'Synthetic'],
 )
 #%%
 import argparse
@@ -66,7 +66,7 @@ def main():
     
     """model load"""
     artifact = wandb.use_artifact(
-        'anseunghwan/DistVAE/TVAE_{}:v{}'.format(config["dataset"], config["num"]), type='model')
+        'anseunghwan/DistVAE/VAE_{}:v{}'.format(config["dataset"], config["num"]), type='model')
     for key, item in artifact.metadata.items():
         config[key] = item
     model_dir = artifact.download()
@@ -81,7 +81,7 @@ def main():
         torch.cuda.manual_seed(config["seed"])
     #%%
     """model"""
-    model = TVAE(config, device).to(device)
+    model = VAE(config, device).to(device)
     
     if config["cuda"]:
         model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
@@ -103,63 +103,56 @@ def main():
     wandb.log({'Number of Parameters': num_params})
     #%%
     """dataset"""
-    _, _, transformer, train, test, continuous, discrete = generate_dataset(config, device, random_state=0)
+    OutputInfo_list, _, _, train, test, continuous, discrete = generate_dataset(config, device, random_state=0)
     
-    config["input_dim"] = transformer.output_dimensions
+    MSE_dim = sum([x.dim for x in OutputInfo_list if x.activation_fn == 'MSE'])
+    softmax_dim = sum([x.dim for x in OutputInfo_list if x.activation_fn == 'softmax'])
+    config["MSE_dim"] = MSE_dim
+    config["softmax_dim"] = softmax_dim
+    config["input_dim"] = config["MSE_dim"] + config["softmax_dim"]
     #%%
     # preprocess
     train_mean = train[continuous].mean(axis=0)
     train_std = train[continuous].std(axis=0)
     train[continuous] = (train[continuous] - train_mean) / train_std
     test[continuous] = (test[continuous] - train_mean) / train_std
-    
-    df = pd.concat([train, test], axis=0)
-    df_dummy = []
-    for d in discrete:
-        df_dummy.append(pd.get_dummies(df[d], prefix=d))
-    df = pd.concat([df.drop(columns=discrete)] + df_dummy, axis=1)
-    
-    if config["dataset"] == "covtype":
-        train = df.iloc[:45000]
-        test = df.iloc[45000:]
-    elif config["dataset"] == "credit":
-        train = df.iloc[:45000]
-        test = df.iloc[45000:]
-    elif config["dataset"] == "loan":
-        train = df.iloc[:4000]
-        test = df.iloc[4000:]
-    elif config["dataset"] == "adult":
-        train = df.iloc[:40000]
-        test = df.iloc[40000:]
-    elif config["dataset"] == "cabs":
-        train = df.iloc[:40000]
-        test = df.iloc[40000:]
-    elif config["dataset"] == "kings":
-        train = df.iloc[:20000]
-        test = df.iloc[20000:]
-    else:
-        raise ValueError('Not supported dataset!')
     #%%
     """synthetic dataset"""
+    n = len(train)
+    
     torch.manual_seed(config["seed"])
-    steps = len(train) // config["batch_size"] + 1
-    data = []
+    randn = torch.randn(n, config["latent_dim"]) # prior
     with torch.no_grad():
-        for _ in range(steps):
-            mean = torch.zeros(config["batch_size"], config["latent_dim"])
-            std = mean + 1
-            noise = torch.normal(mean=mean, std=std).to(device)
-            fake = model.decoder(noise)
-            fake = torch.tanh(fake)
-            data.append(fake.numpy())
-    data = np.concatenate(data, axis=0)
-    data = data[:len(train)]
-    sample_df = transformer.inverse_transform(data, model.sigma.detach().cpu().numpy())
+        xhat = model.decoder(randn)
+    
+        samples = []
+        st = 0
+        for j, info in enumerate(OutputInfo_list):
+            if info.activation_fn == "MSE":
+                x_ = xhat[:, [j]] + torch.randn(xhat[:, [j]].shape) * model.sigma[j]
+                samples.append(x_)
+                
+            elif info.activation_fn == "softmax":
+                ed = st + info.dim
+                out = xhat[:, config["MSE_dim"] + st : config["MSE_dim"] + ed]
+                
+                """ArgMax Sampling"""
+                _, out = out.max(dim=1)
+                
+                samples.append(out[:, None] + 1)
+                st = ed
+            
+    samples = torch.cat(samples, dim=1)
+    sample_df = pd.DataFrame(samples.numpy(), columns=continuous + discrete)
+    sample_df[discrete] = sample_df[discrete].astype(int)
     
     df_dummy = []
     for d in discrete:
         df_dummy.append(pd.get_dummies(sample_df[d], prefix=d))
     sample_df = pd.concat([sample_df.drop(columns=discrete)] + df_dummy, axis=1)
+    
+    sample_df[continuous] *= train_std
+    sample_df[continuous] += train_mean
     #%%
     if not os.path.exists('./assets/{}'.format(config["dataset"])):
         os.makedirs('./assets/{}'.format(config["dataset"]))
@@ -232,7 +225,7 @@ def main():
     wandb.log({'MARE (Baseline)': np.mean([x[1] for x in base_reg])})
     # wandb.log({'R^2 (Baseline)': np.mean([x[1] for x in base_reg])})
     #%%
-    # TVAE
+    # VAE
     print("\nSynthetic: Machine Learning Utility in Regression...\n")
     reg = regression_eval(sample_df_scaled, real_test, target)
     wandb.log({'MARE': np.mean([x[1] for x in reg])})
@@ -277,7 +270,7 @@ def main():
     sample_df_scaled = sample_df.copy()
     sample_df_scaled[continuous] = (sample_df_scaled[continuous] - sample_mean) / sample_std
     
-    # TVAE
+    # VAE
     print("\nSynthetic: Machine Learning Utility in Classification...\n")
     clf = classification_eval(sample_df_scaled, test, target)
     wandb.log({'F1': np.mean([x[1] for x in clf])})

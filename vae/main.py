@@ -62,7 +62,7 @@ def get_args(debug):
                         help="the dimension of latent variable")
     
     # optimization options
-    parser.add_argument('--epochs', default=200, type=int,
+    parser.add_argument('--epochs', default=100, type=int,
                         help='maximum iteration')
     parser.add_argument('--batch_size', default=256, type=int,
                         help='batch size')
@@ -108,6 +108,10 @@ def main():
     )
     
     model.train()
+    #%%
+    count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
+    num_params = count_parameters(model)
+    print("Number of Parameters:", num_params)
     #%%
     for epoch in range(config["epochs"]):
         logs = train(OutputInfo_list, dataloader, model, config, optimizer, device)
