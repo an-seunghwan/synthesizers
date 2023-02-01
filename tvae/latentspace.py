@@ -44,7 +44,7 @@ import argparse
 def get_args(debug):
     parser = argparse.ArgumentParser('parameters')
     
-    parser.add_argument('--num', type=int, default=0, 
+    parser.add_argument('--num', type=int, default=6, 
                         help='model version')
     parser.add_argument('--dataset', type=str, default='credit', 
                         help='Dataset options: only supports credit dataset!')
@@ -56,7 +56,7 @@ def get_args(debug):
 #%%
 def main():
     #%%
-    config = vars(get_args(debug=True)) # default configuration
+    config = vars(get_args(debug=False)) # default configuration
     
     """model load"""
     artifact = wandb.use_artifact(
@@ -91,198 +91,64 @@ def main():
     model.eval()
     #%%
     """dataset"""
-    _, _, transformer, train, test, continuous, discrete = generate_dataset(config, device, random_state=0)
+    dataset, dataloader, transformer, train, test, continuous, discrete = generate_dataset(config, device, random_state=0)
     
     config["input_dim"] = transformer.output_dimensions
     #%%
-    # preprocess
-    train_mean = train[continuous].mean(axis=0)
-    train_std = train[continuous].std(axis=0)
-    train[continuous] = (train[continuous] - train_mean) / train_std
-    test[continuous] = (test[continuous] - train_mean) / train_std
-    
-    df = pd.concat([train, test], axis=0)
-    df_dummy = []
-    for d in discrete:
-        df_dummy.append(pd.get_dummies(df[d], prefix=d))
-    df = pd.concat([df.drop(columns=discrete)] + df_dummy, axis=1)
-    
-    if config["dataset"] == "covtype":
-        train = df.iloc[:45000]
-        test = df.iloc[45000:]
-    elif config["dataset"] == "credit":
-        train = df.iloc[:45000]
-        test = df.iloc[45000:]
-    elif config["dataset"] == "loan":
-        train = df.iloc[:4000]
-        test = df.iloc[4000:]
-    elif config["dataset"] == "adult":
-        train = df.iloc[:40000]
-        test = df.iloc[40000:]
-    elif config["dataset"] == "cabs":
-        train = df.iloc[:40000]
-        test = df.iloc[40000:]
-    elif config["dataset"] == "kings":
-        train = df.iloc[:20000]
-        test = df.iloc[20000:]
+    if config["dataset"] == 'credit':
+        #%%
+        latents = []
+        dataloader_ = DataLoader(dataset, batch_size=config["batch_size"], shuffle=False)
+        for (x_batch, ) in tqdm.tqdm(iter(dataloader_), desc="inner loop"):
+            if config["cuda"]:
+                x_batch = x_batch.cuda()
+            
+            with torch.no_grad():
+                mean, logvar = model.get_posterior(x_batch)
+            latents.append(mean)
+        latents = torch.cat(latents, dim=0).numpy()
+        labels = train['TARGET'].to_numpy()
+        #%%
+        plt.figure(figsize=(5, 5))
+        plt.scatter(
+            latents[labels == 0, 0], latents[labels == 0, 1],
+            s=25, c='blue', alpha=0.5,
+            label="0")
+        plt.scatter(
+            latents[labels == 1, 0], latents[labels == 1, 1],
+            s=25, c='red', alpha=0.5,
+            label="1")
+        plt.xlim(-4, 4)
+        plt.ylim(-4, 4)
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+        plt.xlabel('$z_1$', fontsize=18)
+        plt.ylabel('$z_2$', fontsize=18)
+        plt.legend(fontsize=16)
+        
+        plt.tight_layout()
+        plt.savefig('./assets/{}/{}_latent_space.png'.format(config["dataset"], config["dataset"]))
+        plt.show()
+        plt.close()
+        #%%
+        plt.figure(figsize=(5, 5))
+        plt.bar(
+            [0, 1], 
+            [(labels == 0).mean(), (labels == 1).mean()])
+        plt.xticks([0, 1], ["0", "1"])
+        plt.ylim(0, 1)
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+        plt.xlabel('label', fontsize=18)
+        plt.ylabel('proportion', fontsize=18)
+        
+        plt.tight_layout()
+        plt.savefig('./assets/{}/{}_label_ratio.png'.format(config["dataset"], config["dataset"]))
+        plt.show()
+        plt.close()
+        #%%
     else:
         raise ValueError('Not supported dataset!')
-    #%%
-    """synthetic dataset"""
-    torch.manual_seed(config["seed"])
-    steps = len(train) // config["batch_size"] + 1
-    data = []
-    with torch.no_grad():
-        for _ in range(steps):
-            mean = torch.zeros(config["batch_size"], config["latent_dim"])
-            std = mean + 1
-            noise = torch.normal(mean=mean, std=std).to(device)
-            fake = model.decoder(noise)
-            fake = torch.tanh(fake)
-            data.append(fake.numpy())
-    data = np.concatenate(data, axis=0)
-    data = data[:len(train)]
-    sample_df = transformer.inverse_transform(data, model.sigma.detach().cpu().numpy())
-    
-    df_dummy = []
-    for d in discrete:
-        df_dummy.append(pd.get_dummies(sample_df[d], prefix=d))
-    sample_df = pd.concat([sample_df.drop(columns=discrete)] + df_dummy, axis=1)
-    #%%
-    if not os.path.exists('./assets/{}'.format(config["dataset"])):
-        os.makedirs('./assets/{}'.format(config["dataset"]))
-    #%%
-    sample_mean = sample_df[continuous].mean(axis=0)
-    sample_std = sample_df[continuous].std(axis=0)
-    sample_df_scaled = sample_df.copy()
-    sample_df_scaled[continuous] = (sample_df_scaled[continuous] - sample_mean) / sample_std
-    #%%
-    """Goodness of Fit""" # only continuous
-    print("\nGoodness of Fit...\n")
-    
-    Dn, W1 = goodness_of_fit(len(continuous), train.to_numpy(), sample_df_scaled.to_numpy())
-    
-    print('Goodness of Fit (Kolmogorov): {:.3f}'.format(Dn))
-    print('Goodness of Fit (1-Wasserstein): {:.3f}'.format(W1))
-    wandb.log({'Goodness of Fit (Kolmogorov)': Dn})
-    wandb.log({'Goodness of Fit (1-Wasserstein)': W1})
-    #%%
-    """Privacy Preservability""" # only continuous
-    print("\nPrivacy Preservability...\n")
-    
-    privacy = privacy_metrics(train[continuous], sample_df_scaled[continuous])
-    
-    DCR = privacy[0, :3]
-    print('DCR (R&S): {:.3f}'.format(DCR[0]))
-    print('DCR (R): {:.3f}'.format(DCR[1]))
-    print('DCR (S): {:.3f}'.format(DCR[2]))
-    wandb.log({'DCR (R&S)': DCR[0]})
-    wandb.log({'DCR (R)': DCR[1]})
-    wandb.log({'DCR (S)': DCR[2]})
-    
-    NNDR = privacy[0, 3:]
-    print('NNDR (R&S): {:.3f}'.format(NNDR[0]))
-    print('NNDR (R): {:.3f}'.format(NNDR[1]))
-    print('NNDR (S): {:.3f}'.format(NNDR[2]))
-    wandb.log({'NNDR (R&S)': NNDR[0]})
-    wandb.log({'NNDR (R)': NNDR[1]})
-    wandb.log({'NNDR (S)': NNDR[2]})
-    #%%
-    """Regression"""
-    if config["dataset"] == "covtype":
-        target = 'Elevation'
-    elif config["dataset"] == "credit":
-        target = 'AMT_CREDIT'
-    elif config["dataset"] == "loan":
-        target = 'Age'
-    elif config["dataset"] == "adult":
-        target = 'age'
-    elif config["dataset"] == "cabs":
-        target = 'Trip_Distance'
-    elif config["dataset"] == "kings":
-        target = 'long'
-    else:
-        raise ValueError('Not supported dataset!')
-    #%%
-    # standardization except for target variable
-    real_train = train.copy()
-    real_test = test.copy()
-    real_train[target] = real_train[target] * train_std[target] + train_mean[target]
-    real_test[target] = real_test[target] * train_std[target] + train_mean[target]
-    
-    cont = [x for x in continuous if x not in [target]]
-    sample_df_scaled = sample_df.copy()
-    sample_df_scaled[cont] = (sample_df_scaled[cont] - sample_mean[cont]) / sample_std[cont]
-    #%%
-    # baseline
-    print("\nBaseline: Machine Learning Utility in Regression...\n")
-    base_reg = regression_eval(real_train, real_test, target)
-    wandb.log({'MARE (Baseline)': np.mean([x[1] for x in base_reg])})
-    # wandb.log({'R^2 (Baseline)': np.mean([x[1] for x in base_reg])})
-    #%%
-    # TVAE
-    print("\nSynthetic: Machine Learning Utility in Regression...\n")
-    reg = regression_eval(sample_df_scaled, real_test, target)
-    wandb.log({'MARE': np.mean([x[1] for x in reg])})
-    # wandb.log({'R^2': np.mean([x[1] for x in reg])})
-    #%%
-    # # visualization
-    # fig = plt.figure(figsize=(5, 4))
-    # plt.plot([x[1] for x in base_reg], 'o--', label='baseline')
-    # plt.plot([x[1] for x in reg], 'o--', label='synthetic')
-    # plt.ylim(0, 1)
-    # plt.ylabel('MARE', fontsize=13)
-    # # plt.ylabel('$R^2$', fontsize=13)
-    # plt.xticks([0, 1, 2], [x[0] for x in base_reg], fontsize=13)
-    # plt.legend()
-    # plt.tight_layout()
-    # plt.savefig('./assets/{}/{}_MLU_regression.png'.format(config["dataset"], config["dataset"]))
-    # # plt.show()
-    # plt.close()
-    # wandb.log({'ML Utility (Regression)': wandb.Image(fig)})
-    #%%
-    """Classification"""
-    if config["dataset"] == "covtype":
-        target = 'Cover_Type'
-    elif config["dataset"] == "credit":
-        target = 'TARGET'
-    elif config["dataset"] == "loan":
-        target = 'Personal Loan'
-    elif config["dataset"] == "adult":
-        target = 'income'
-    elif config["dataset"] == "cabs":
-        target = 'Surge_Pricing_Type'
-    elif config["dataset"] == "kings":
-        target = 'condition'
-    else:
-        raise ValueError('Not supported dataset!')
-    #%%
-    # baseline
-    print("\nBaseline: Machine Learning Utility in Classification...\n")
-    base_clf = classification_eval(train, test, target)
-    wandb.log({'F1 (Baseline)': np.mean([x[1] for x in base_clf])})
-    #%%
-    sample_df_scaled = sample_df.copy()
-    sample_df_scaled[continuous] = (sample_df_scaled[continuous] - sample_mean) / sample_std
-    
-    # TVAE
-    print("\nSynthetic: Machine Learning Utility in Classification...\n")
-    clf = classification_eval(sample_df_scaled, test, target)
-    wandb.log({'F1': np.mean([x[1] for x in clf])})
-    #%%
-    # # visualization
-    # fig = plt.figure(figsize=(5, 4))
-    # plt.plot([x[1] for x in base_clf], 'o--', label='baseline')
-    # plt.plot([x[1] for x in clf], 'o--', label='synthetic')
-    # plt.ylim(0, 1)
-    # plt.ylabel('$F_1$', fontsize=13)
-    # plt.xticks([0, 1, 2], [x[0] for x in base_clf], fontsize=13)
-    # plt.legend()
-    # plt.tight_layout()
-    # plt.savefig('./assets/{}/{}_MLU_classification.png'.format(config["dataset"], config["dataset"]))
-    # # plt.show()
-    # plt.close()
-    # wandb.log({'ML Utility (Classification)': wandb.Image(fig)})
     #%%
     wandb.run.finish()
 #%%
