@@ -14,20 +14,20 @@ class VAE(nn.Module):
         
         """encoder"""
         self.encoder = nn.Sequential(
-            nn.Linear(config["input_dim"], 16),
+            nn.Linear(config["input_dim"], 128),
             nn.ReLU(),
-            nn.Linear(16, 8),
+            nn.Linear(128, 64),
             nn.ReLU(),
-            nn.Linear(8, config["latent_dim"] * 2),
+            nn.Linear(64, config["latent_dim"] * 2),
         ).to(device)
         
         """decoder"""
         self.decoder = nn.Sequential(
-            nn.Linear(config["latent_dim"], 16),
+            nn.Linear(config["latent_dim"], 64),
             nn.ReLU(),
-            nn.Linear(16, 64),
+            nn.Linear(64, 128),
             nn.ReLU(),
-            nn.Linear(64, config["input_dim"]),
+            nn.Linear(128, config["input_dim"]),
         ).to(device)
         self.sigma = nn.Parameter(torch.ones(config["input_dim"]) * 0.1)
         
