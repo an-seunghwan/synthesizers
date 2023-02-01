@@ -8,7 +8,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
 from torch.nn.functional import cross_entropy
 #%%
-def train(output_info_list, dataset, dataloader, model, config, optimizer, device):
+def train(OutputInfo_list, dataloader, model, config, optimizer, device):
     logs = {
         'loss': [], 
         'recon': [],
@@ -30,22 +30,22 @@ def train(output_info_list, dataset, dataloader, model, config, optimizer, devic
         loss_ = []
         
         """reconstruction"""
-        start = 0
+        j = 0
+        st = 0
         recon = 0
-        for column_info in output_info_list:
-            for span_info in column_info:
-                if span_info.activation_fn != 'softmax':
-                    end = start + span_info.dim
-                    std = model.sigma[start]
-                    residual = x_batch[:, start] - torch.tanh(xhat[:, start])
-                    recon += (residual ** 2 / 2 / (std ** 2)).mean()
-                    recon += torch.log(std)
-                    start = end
-                else:
-                    end = start + span_info.dim
-                    recon += cross_entropy(
-                        xhat[:, start:end], torch.argmax(x_batch[:, start:end], dim=-1), reduction='mean')
-                    start = end
+        for j, info in enumerate(OutputInfo_list):
+            if info.activation_fn == "MSE":
+                std = model.sigma[j]
+                residual = x_batch[:, j] - xhat[:, j]
+                recon += (residual ** 2 / 2 / (std ** 2)).mean()
+                recon += torch.log(std)
+            
+            elif info.activation_fn == "softmax":
+                ed = st + info.dim
+                _, targets = x_batch[:, config["MSE_dim"] + st : config["MSE_dim"] + ed].max(dim=1)
+                out = xhat[:, config["MSE_dim"] + st : config["MSE_dim"] + ed]
+                recon += nn.CrossEntropyLoss()(out, targets)
+                st = ed
         loss_.append(('recon', recon))
         
         """KL-Divergence"""

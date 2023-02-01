@@ -20,7 +20,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
 
 from evaluation.simulation import set_random_seed
-from modules.model import TVAE
+from modules.model import VAE
 from modules.datasets import generate_dataset
 from modules.train import train
 #%%
@@ -38,7 +38,7 @@ except:
 run = wandb.init(
     project="DistVAE", 
     entity="anseunghwan",
-    tags=["TVAE"],
+    tags=["VAE"],
 )
 #%%
 import argparse
@@ -91,11 +91,15 @@ def main():
         torch.cuda.manual_seed(config["seed"])
     #%%
     """dataset"""
-    dataset, dataloader, transformer, _, _, _, _ = generate_dataset(config, device, random_state=0)
+    OutputInfo_list, dataset, dataloader, _, _, _, _ = generate_dataset(config, device, random_state=0)
     
-    config["input_dim"] = transformer.output_dimensions
+    MSE_dim = sum([x.dim for x in OutputInfo_list if x.activation_fn == 'MSE'])
+    softmax_dim = sum([x.dim for x in OutputInfo_list if x.activation_fn == 'softmax'])
+    config["MSE_dim"] = MSE_dim
+    config["softmax_dim"] = softmax_dim
+    config["input_dim"] = config["MSE_dim"] + config["softmax_dim"]
     #%%
-    model = TVAE(config, device).to(device)
+    model = VAE(config, device).to(device)
 
     optimizer = torch.optim.Adam(
         model.parameters(), 
@@ -106,7 +110,7 @@ def main():
     model.train()
     #%%
     for epoch in range(config["epochs"]):
-        logs = train(transformer.output_info_list, dataset, dataloader, model, config, optimizer, device)
+        logs = train(OutputInfo_list, dataloader, model, config, optimizer, device)
         
         print_input = "[epoch {:03d}]".format(epoch + 1)
         print_input += ''.join([', {}: {:.4f}'.format(x, np.mean(y)) for x, y in logs.items()])
@@ -116,11 +120,11 @@ def main():
         wandb.log({x : np.mean(y) for x, y in logs.items()})
     #%%
     """model save"""
-    torch.save(model.state_dict(), './assets/TVAE_{}.pth'.format(config["dataset"]))
-    artifact = wandb.Artifact('TVAE_{}'.format(config["dataset"]), 
+    torch.save(model.state_dict(), './assets/VAE_{}.pth'.format(config["dataset"]))
+    artifact = wandb.Artifact('VAE_{}'.format(config["dataset"]), 
                             type='model',
                             metadata=config) # description=""
-    artifact.add_file('./assets/TVAE_{}.pth'.format(config["dataset"]))
+    artifact.add_file('./assets/VAE_{}.pth'.format(config["dataset"]))
     artifact.add_file('./main.py')
     artifact.add_file('./modules/model.py')
     wandb.log_artifact(artifact)

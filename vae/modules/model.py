@@ -5,9 +5,9 @@ import torch.nn.functional as F
 
 import numpy as np
 #%%
-class TVAE(nn.Module):
+class VAE(nn.Module):
     def __init__(self, config, device):
-        super(TVAE, self).__init__()
+        super(VAE, self).__init__()
         
         self.config = config
         self.device = device
@@ -20,13 +20,6 @@ class TVAE(nn.Module):
             nn.ReLU(),
             nn.Linear(8, config["latent_dim"] * 2),
         ).to(device)
-        # self.encoder = nn.Sequential(
-        #     nn.Linear(config["input_dim"], 128),
-        #     nn.ReLU(),
-        #     nn.Linear(128, 128),
-        #     nn.ReLU(),
-        #     nn.Linear(128, config["latent_dim"] * 2),
-        # ).to(device)
         
         """decoder"""
         self.decoder = nn.Sequential(
@@ -36,13 +29,6 @@ class TVAE(nn.Module):
             nn.ReLU(),
             nn.Linear(64, config["input_dim"]),
         ).to(device)
-        # self.decoder = nn.Sequential(
-        #     nn.Linear(config["latent_dim"], 128),
-        #     nn.ReLU(),
-        #     nn.Linear(128, 128),
-        #     nn.ReLU(),
-        #     nn.Linear(128, config["input_dim"]),
-        # ).to(device)
         self.sigma = nn.Parameter(torch.ones(config["input_dim"]) * 0.1)
         
     def get_posterior(self, input):
@@ -78,7 +64,7 @@ def main():
         "latent_dim": 3,
     }
     """TVAE"""
-    model = TVAE(config, 'cpu')
+    model = VAE(config, 'cpu')
     for x in model.parameters():
         print(x.shape)
     batch = torch.rand(config["n"], config["input_dim"])
@@ -90,7 +76,7 @@ def main():
     assert latent.shape == (config["n"], config["latent_dim"])
     assert xhat.shape == (config["n"], config["input_dim"])
     
-    print("TVAE pass test!")
+    print("VAE pass test!")
     print()
     #%%
 #%%

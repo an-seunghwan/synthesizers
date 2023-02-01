@@ -10,7 +10,9 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
 
-from .data_transformer import DataTransformer
+from collections import namedtuple
+
+OutputInfo = namedtuple('OutputInfo', ['dim', 'activation_fn'])
 #%%
 def generate_dataset(config, device, random_state=0):
     
@@ -37,13 +39,15 @@ def generate_dataset(config, device, random_state=0):
         ]
         df = df[continuous + discrete]
         
+        # one-hot
+        df_dummy = []
+        for d in discrete:
+            df_dummy.append(pd.get_dummies(df[d], prefix=d))
+        df = pd.concat([df.drop(columns=discrete)] + df_dummy, axis=1)
+        
         train = df.iloc[:45000]
         test = df.iloc[45000:]
         
-        transformer = DataTransformer()
-        transformer.fit(train, discrete_columns=discrete, random_state=random_state)
-        train_data = transformer.transform(train)
-    
     elif config["dataset"] == 'credit':
         df = pd.read_csv('../data/application_train.csv')
         df = df.sample(frac=1, random_state=0).reset_index(drop=True)
@@ -76,12 +80,14 @@ def generate_dataset(config, device, random_state=0):
         df = df.dropna(axis=0)
         df = df.iloc[:50000]
         
+        # one-hot
+        df_dummy = []
+        for d in discrete:
+            df_dummy.append(pd.get_dummies(df[d], prefix=d))
+        df = pd.concat([df.drop(columns=discrete)] + df_dummy, axis=1)
+        
         train = df.iloc[:45000]
         test = df.iloc[45000:]
-        
-        transformer = DataTransformer()
-        transformer.fit(train, discrete_columns=discrete, random_state=random_state)
-        train_data = transformer.transform(train)
         
     elif config["dataset"] == 'loan':
         df = pd.read_csv('../data/Bank_Personal_Loan_Modelling.csv')
@@ -105,12 +111,14 @@ def generate_dataset(config, device, random_state=0):
         df = df[continuous + discrete]
         df = df.dropna()
         
+        # one-hot
+        df_dummy = []
+        for d in discrete:
+            df_dummy.append(pd.get_dummies(df[d], prefix=d))
+        df = pd.concat([df.drop(columns=discrete)] + df_dummy, axis=1)
+        
         train = df.iloc[:4000]
         test = df.iloc[4000:]
-        
-        transformer = DataTransformer()
-        transformer.fit(train, discrete_columns=discrete, random_state=random_state)
-        train_data = transformer.transform(train)
         
     elif config["dataset"] == 'adult':
         df = pd.read_csv('../data/adult.csv')
@@ -138,12 +146,14 @@ def generate_dataset(config, device, random_state=0):
         df = df[continuous + discrete]
         df = df.dropna()
         
+        # one-hot
+        df_dummy = []
+        for d in discrete:
+            df_dummy.append(pd.get_dummies(df[d], prefix=d))
+        df = pd.concat([df.drop(columns=discrete)] + df_dummy, axis=1)
+        
         train = df.iloc[:40000]
         test = df.iloc[40000:]
-        
-        transformer = DataTransformer()
-        transformer.fit(train, discrete_columns=discrete, random_state=random_state)
-        train_data = transformer.transform(train)
         
     elif config["dataset"] == 'cabs':
         df = pd.read_csv('../data/sigma_cabs.csv')
@@ -169,12 +179,14 @@ def generate_dataset(config, device, random_state=0):
         ]
         df = df[continuous + discrete]
         
+        # one-hot
+        df_dummy = []
+        for d in discrete:
+            df_dummy.append(pd.get_dummies(df[d], prefix=d))
+        df = pd.concat([df.drop(columns=discrete)] + df_dummy, axis=1)
+        
         train = df.iloc[:40000]
         test = df.iloc[40000:]
-        
-        transformer = DataTransformer()
-        transformer.fit(train, discrete_columns=discrete, random_state=random_state)
-        train_data = transformer.transform(train)
         
     elif config["dataset"] == 'kings':
         df = pd.read_csv('../data/kc_house_data.csv')
@@ -204,18 +216,33 @@ def generate_dataset(config, device, random_state=0):
         ]
         df = df[continuous + discrete]
         
+        # one-hot
+        df_dummy = []
+        for d in discrete:
+            df_dummy.append(pd.get_dummies(df[d], prefix=d))
+        df = pd.concat([df.drop(columns=discrete)] + df_dummy, axis=1)
+        
         train = df.iloc[:20000]
         test = df.iloc[20000:]
-        
-        transformer = DataTransformer()
-        transformer.fit(train, discrete_columns=discrete, random_state=random_state)
-        train_data = transformer.transform(train)
         
     else:
         raise ValueError('Not supported dataset!')    
 
-    dataset = TensorDataset(torch.from_numpy(train_data.astype('float32')).to(device))
+    # Output Information
+    OutputInfo_list = []
+    for c in continuous:
+        OutputInfo_list.append(OutputInfo(1, 'MSE'))
+    for d, dummy in zip(discrete, df_dummy):
+        OutputInfo_list.append(OutputInfo(dummy.shape[1], 'softmax'))
+
+    # standardization
+    train_data = train.copy()
+    train_data[continuous] -= train_data[continuous].mean(axis=0)
+    train_data[continuous] /= train_data[continuous].std(axis=0)
+    train_data = train_data.to_numpy().astype('float32')
+    
+    dataset = TensorDataset(torch.from_numpy(train_data).to(device))
     dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True, drop_last=False)
     
-    return dataset, dataloader, transformer, train, test, continuous, discrete
+    return OutputInfo_list, dataset, dataloader, train, test, continuous, discrete
 #%%
