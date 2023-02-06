@@ -20,6 +20,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
 
 from evaluation.evaluation import (
+    merge_discrete,
     regression_eval,
     classification_eval,
     goodness_of_fit,
@@ -193,22 +194,41 @@ def main():
     sample_df_scaled = sample_df.copy()
     sample_df_scaled[continuous] = (sample_df_scaled[continuous] - sample_mean) / sample_std
     #%%
-    """Goodness of Fit""" # only continuous
+    """Goodness of Fit""" 
     print("\nGoodness of Fit...\n")
     
-    Dn, W1 = goodness_of_fit(len(continuous), train.to_numpy(), sample_df_scaled.to_numpy())
+    cut_points1 = merge_discrete(train.to_numpy(), len(continuous))
+    cut_points2 = merge_discrete(sample_df_scaled.to_numpy(), len(continuous))
     
-    print('Goodness of Fit (Kolmogorov): {:.3f}'.format(Dn))
-    print('Goodness of Fit (1-Wasserstein): {:.3f}'.format(W1))
-    wandb.log({'Goodness of Fit (Kolmogorov)': Dn})
-    wandb.log({'Goodness of Fit (1-Wasserstein)': W1})
+    Dn, W1 = goodness_of_fit(len(continuous), train.to_numpy(), sample_df_scaled.to_numpy(), cut_points1, cut_points2)
+    cont_Dn = np.mean(Dn[:len(continuous)])
+    disc_Dn = np.mean(Dn[len(continuous):])
+    cont_W1 = np.mean(W1[:len(continuous)])
+    disc_W1 = np.mean(W1[len(continuous):])
+    
+    print('K-S (continuous): {:.3f}'.format(cont_Dn))
+    print('K-S (discrete): {:.3f}'.format(disc_Dn))
+    print('1-WD (continuous): {:.3f}'.format(cont_W1))
+    print('1-WD (discrete): {:.3f}'.format(disc_W1))
+    wandb.log({'K-S (continuous)': cont_Dn})
+    wandb.log({'K-S (discrete)': disc_Dn})
+    wandb.log({'1-WD (continuous)': cont_W1})
+    wandb.log({'1-WD (discrete)': disc_W1})
+    
+    # Dn, W1 = goodness_of_fit(len(continuous), train.to_numpy(), sample_df_scaled.to_numpy())
+    
+    # print('Goodness of Fit (Kolmogorov): {:.3f}'.format(Dn))
+    # print('Goodness of Fit (1-Wasserstein): {:.3f}'.format(W1))
+    # wandb.log({'Goodness of Fit (Kolmogorov)': Dn})
+    # wandb.log({'Goodness of Fit (1-Wasserstein)': W1})
     #%%
     """Privacy Preservability""" # only continuous
     print("\nPrivacy Preservability...\n")
     
     privacy = privacy_metrics(train[continuous], sample_df_scaled[continuous])
     
-    DCR = privacy[0, :3]
+    DCR = privacy
+    # DCR = privacy[0, :3]
     print('DCR (R&S): {:.3f}'.format(DCR[0]))
     print('DCR (R): {:.3f}'.format(DCR[1]))
     print('DCR (S): {:.3f}'.format(DCR[2]))
@@ -216,13 +236,13 @@ def main():
     wandb.log({'DCR (R)': DCR[1]})
     wandb.log({'DCR (S)': DCR[2]})
     
-    NNDR = privacy[0, 3:]
-    print('NNDR (R&S): {:.3f}'.format(NNDR[0]))
-    print('NNDR (R): {:.3f}'.format(NNDR[1]))
-    print('NNDR (S): {:.3f}'.format(NNDR[2]))
-    wandb.log({'NNDR (R&S)': NNDR[0]})
-    wandb.log({'NNDR (R)': NNDR[1]})
-    wandb.log({'NNDR (S)': NNDR[2]})
+    # NNDR = privacy[0, 3:]
+    # print('NNDR (R&S): {:.3f}'.format(NNDR[0]))
+    # print('NNDR (R): {:.3f}'.format(NNDR[1]))
+    # print('NNDR (S): {:.3f}'.format(NNDR[2]))
+    # wandb.log({'NNDR (R&S)': NNDR[0]})
+    # wandb.log({'NNDR (R)': NNDR[1]})
+    # wandb.log({'NNDR (S)': NNDR[2]})
     #%%
     """Regression"""
     if config["dataset"] == "covtype":
