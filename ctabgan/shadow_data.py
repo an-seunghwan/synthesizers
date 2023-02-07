@@ -125,7 +125,7 @@ def main():
     # generating synthetic data in batches accordingly to the total no. required
     steps = (n + m) // config["batch_size"] + 1
     
-    for s in tqdm.tqdm(range(10), desc="Generating shadow train and test datasets..."):
+    for s in tqdm(range(10), desc="Generating shadow train and test datasets..."):
         torch.manual_seed(s)
         
         data = []

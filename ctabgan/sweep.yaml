@@ -1,6 +1,7 @@
 project: DistVAE
 # program: main.py
-program: synthesize.py
+# program: synthesize.py
+program: shadow_data.py
 method: grid
 # metric:
 #   goal: minimize
