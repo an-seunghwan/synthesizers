@@ -1,4 +1,5 @@
 #%%
+import tqdm
 import numpy as np
 #%%
 import statsmodels.api as sm
@@ -14,6 +15,8 @@ from sklearn.ensemble import (
 )
 
 from sklearn.metrics import f1_score
+from sklearn.metrics import precision_score, recall_score
+from scipy.spatial import distance_matrix
 
 from statsmodels.distributions.empirical_distribution import ECDF
 from scipy.stats import wasserstein_distance
