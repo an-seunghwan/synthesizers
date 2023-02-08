@@ -204,7 +204,7 @@ def main():
                                 metadata=config) # description=""
         artifact.add_file('./assets/shadow_CTABGAN_{}.pth'.format(config["dataset"]))
         artifact.add_file('./main.py')
-        artifact.add_file('./modules/model.py')
+        artifact.add_file('./modules/synthesizer.py')
         wandb.log_artifact(artifact)
     #%%
     wandb.run.finish()
