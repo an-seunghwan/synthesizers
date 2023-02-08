@@ -13,14 +13,9 @@ from torch.utils.data import Dataset
 from .data_preparation import DataPrep
 from .transformer import DataTransformer
 #%%
-def generate_dataset(config):
+def generate_dataset(config, train, test):
     
     if config["dataset"] == 'covtype':
-        df = pd.read_csv('../data/covtype.csv')
-        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
-        df = df.dropna(axis=0)
-        df = df.iloc[:50000]
-        
         continuous = [
             'Elevation', # target variable
             'Aspect', 
@@ -36,10 +31,6 @@ def generate_dataset(config):
         discrete = [
             'Cover_Type', # target variable
         ]
-        df = df[continuous + discrete]
-        
-        train = df.iloc[:45000]
-        test = df.iloc[45000:]
         
         target_col = 'Cover_Type'
         data_prep = DataPrep(raw_df=train, categorical=discrete, log=[], mixed={}, 
@@ -50,9 +41,6 @@ def generate_dataset(config):
                                     mixed_dict=data_prep.column_types["mixed"])
         
     elif config["dataset"] == 'credit':
-        df = pd.read_csv('../data/application_train.csv')
-        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
-        
         continuous = [
             'AMT_INCOME_TOTAL', 
             'AMT_CREDIT', # target variable
@@ -77,12 +65,6 @@ def generate_dataset(config):
             'NAME_HOUSING_TYPE',
             'TARGET', # target variable
         ]
-        df = df[continuous + discrete]
-        df = df.dropna(axis=0)
-        df = df.iloc[:50000]
-        
-        train = df.iloc[:45000]
-        test = df.iloc[45000:]
         
         target_col = 'TARGET'
         data_prep = DataPrep(raw_df=train, categorical=discrete, log=[], mixed={}, 
@@ -96,9 +78,6 @@ def generate_dataset(config):
                                     mixed_dict=data_prep.column_types["mixed"])
         
     elif config["dataset"] == 'loan':
-        df = pd.read_csv('../data/Bank_Personal_Loan_Modelling.csv')
-        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
-        
         continuous = [
             'Age', # target variable
             'Experience',
@@ -114,11 +93,6 @@ def generate_dataset(config):
             'Online',
             'CreditCard'
         ]
-        df = df[continuous + discrete]
-        df = df.dropna()
-        
-        train = df.iloc[:4000]
-        test = df.iloc[4000:]
         
         target_col = 'Personal Loan'
         data_prep = DataPrep(raw_df=train, categorical=discrete, log=[], mixed={}, 
@@ -132,10 +106,6 @@ def generate_dataset(config):
                                     mixed_dict=data_prep.column_types["mixed"])
         
     elif config["dataset"] == 'adult':
-        df = pd.read_csv('../data/adult.csv')
-        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
-        df = df[(df == '?').sum(axis=1) == 0]
-        
         continuous = [
             'age', # target variable
             'educational-num',
@@ -154,11 +124,6 @@ def generate_dataset(config):
             'native-country',
             'income', # target variable
         ]
-        df = df[continuous + discrete]
-        df = df.dropna()
-        
-        train = df.iloc[:40000]
-        test = df.iloc[40000:]
         
         target_col = 'income'
         data_prep = DataPrep(raw_df=train, categorical=discrete, log=[], mixed={}, 
@@ -169,10 +134,6 @@ def generate_dataset(config):
                                     mixed_dict=data_prep.column_types["mixed"])
         
     elif config["dataset"] == 'cabs':
-        df = pd.read_csv('../data/sigma_cabs.csv')
-        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
-        df = df.dropna().reset_index().drop(columns='index')
-        
         continuous = [
             'Trip_Distance', # target variable
             'Life_Style_Index', 
@@ -190,10 +151,6 @@ def generate_dataset(config):
             'Gender',
             'Surge_Pricing_Type', # target variable
         ]
-        df = df[continuous + discrete]
-        
-        train = df.iloc[:40000]
-        test = df.iloc[40000:]
         
         target_col = 'Surge_Pricing_Type'
         data_prep = DataPrep(raw_df=train, categorical=discrete, log=[], mixed={}, 
@@ -204,9 +161,6 @@ def generate_dataset(config):
                                     mixed_dict=data_prep.column_types["mixed"])
         
     elif config["dataset"] == 'kings':
-        df = pd.read_csv('../data/kc_house_data.csv')
-        df = df.sample(frac=1, random_state=0).reset_index(drop=True)
-        
         continuous = [
             'price', 
             'sqft_living',
@@ -229,10 +183,6 @@ def generate_dataset(config):
             'condition', # target variable
             'grade', 
         ]
-        df = df[continuous + discrete]
-        
-        train = df.iloc[:20000]
-        test = df.iloc[20000:]
         
         target_col = 'condition'
         data_prep = DataPrep(raw_df=train, categorical=discrete, log=[], mixed={}, 
