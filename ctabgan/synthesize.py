@@ -224,7 +224,7 @@ def main():
     # wandb.log({'Goodness of Fit (1-Wasserstein)': W1})
     #%%
     """Privacy Preservability""" # only continuous
-    print("\nPrivacy Preservability...\n")
+    print("\nDistance to Cloesest Record...\n")
     
     privacy = DCR_metric(train[continuous], sample_df_scaled[continuous])
     

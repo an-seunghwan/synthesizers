@@ -118,9 +118,9 @@ def main():
     n = len(train)
     m = len(test)
     
+    K = 1 # the number of shadow models
     steps = (n + m) // config["batch_size"] + 1
-    
-    for s in tqdm.tqdm(range(10), desc="Generating shadow train and test datasets..."):
+    for s in tqdm.tqdm(range(K), desc="Generating shadow train and test datasets..."):
         torch.manual_seed(s)
         
         data = []
