@@ -24,7 +24,8 @@ from evaluation.evaluation import (
     regression_eval,
     classification_eval,
     goodness_of_fit,
-    privacy_metrics
+    DCR_metric,
+    attribute_disclosure
 )
 from evaluation.simulation import set_random_seed
 
@@ -243,6 +244,27 @@ def main():
     # wandb.log({'NNDR (R&S)': NNDR[0]})
     # wandb.log({'NNDR (R)': NNDR[1]})
     # wandb.log({'NNDR (S)': NNDR[2]})
+    #%%
+    print("\nAttribute Disclosure...\n")
+    
+    cut_points = merge_discrete(sample_df_scaled.to_numpy(), len(continuous))
+    
+    compromised_idx = np.random.choice(range(len(train)), 
+                                       int(len(train) * 0.01), 
+                                       replace=False)
+    compromised = train.iloc[compromised_idx]
+    #%%
+    for attr_num in [1, 2, 3, 4, 5]:
+        if attr_num > len(continuous): break
+        attr_compromised = continuous[:attr_num]
+        for K in [1, 10, 100]:
+            precision, recall = attribute_disclosure(
+                K, compromised, sample_df_scaled, attr_compromised, cut_points, len(continuous)
+            )
+            print(f'AD Precision (S={attr_num},K={K}):', precision)
+            print(f'AD Recall (S={attr_num},K={K}):', recall)
+            wandb.log({f'AD Precision (S={attr_num},K={K})': precision})
+            wandb.log({f'AD Recall (S={attr_num},K={K})': recall})
     #%%
     """Regression"""
     if config["dataset"] == "covtype":
