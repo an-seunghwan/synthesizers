@@ -49,7 +49,7 @@ def get_args(debug):
     
     parser.add_argument('--num', type=int, default=0, 
                         help='model version')
-    parser.add_argument('--dataset', type=str, default='covtype', 
+    parser.add_argument('--dataset', type=str, default='credit', 
                         help='Dataset options: covtype, credit, loan, adult, cabs, kings')
 
     if debug:
@@ -131,10 +131,13 @@ def main():
     
     for k in range(len(model_dirs)):
         df_train = pd.read_csv(f'./privacy/{config["dataset"]}/train_{config["seed"]}_synthetic{k}.csv', index_col=0)
-        targets.append(df_train[target].to_numpy()-1)
-        
         df_test = pd.read_csv(f'./privacy/{config["dataset"]}/test_{config["seed"]}_synthetic{k}.csv', index_col=0)
-        targets_test.append(df_test[target].to_numpy()-1)
+        if np.min(df_train[target].to_numpy()) == 0:
+            targets.append(df_train[target].to_numpy())
+            targets_test.append(df_test[target].to_numpy())
+        else:
+            targets.append(df_train[target].to_numpy()-1)
+            targets_test.append(df_test[target].to_numpy()-1)
         
         _, shadow_dataloader, shadow_transformer, _, _, _, _ = shadow_datasets.generate_dataset(
             config, df_train, df_test, device, random_state=0)
@@ -245,8 +248,12 @@ def main():
     gt_latents_test = torch.cat(gt_latents_test, dim=0)
     #%%
     """attacker accuracy"""
-    gt_targets = train[target].to_numpy()-1
-    gt_targets_test = test[target].to_numpy()-1
+    if np.min(train[target].to_numpy()) == 0:
+        gt_targets = train[target].to_numpy()
+        gt_targets_test = test[target].to_numpy()
+    else:
+        gt_targets = train[target].to_numpy()-1
+        gt_targets_test = test[target].to_numpy()-1
     
     gt_latents = gt_latents[:len(gt_latents_test), :]
     gt_targets = gt_targets[:len(gt_latents_test)]
