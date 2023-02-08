@@ -91,12 +91,13 @@ def main():
         torch.cuda.manual_seed(config["seed"])
     #%%
     """Load shadow data"""
+    K = 1 # the number of shadow models
     shadow_data = []
-    for s in range(10):
+    for s in range(K):
         df = pd.read_csv(f'./privacy/{config["dataset"]}/train_{config["seed"]}_synthetic{s}.csv', index_col=0)
         shadow_data.append(df)
     shadow_data_test = []
-    for s in range(10):
+    for s in range(K):
         df = pd.read_csv(f'./privacy/{config["dataset"]}/test_{config["seed"]}_synthetic{s}.csv', index_col=0)
         shadow_data_test.append(df)
     #%%

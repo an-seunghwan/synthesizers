@@ -118,11 +118,12 @@ def main():
                 fake = torch.tanh(fake)
                 data.append(fake.numpy())
         data = np.concatenate(data, axis=0)
-        
         data = data[:n + m]
         
+        # train
         sample_df = transformer.inverse_transform(data[:n], model.sigma.detach().cpu().numpy())
         sample_df.to_csv(f'./privacy/{config["dataset"]}/train_{config["seed"]}_synthetic{s}.csv')
+        # test
         sample_df = transformer.inverse_transform(data[n:], model.sigma.detach().cpu().numpy())
         sample_df.to_csv(f'./privacy/{config["dataset"]}/test_{config["seed"]}_synthetic{s}.csv')
     #%%
