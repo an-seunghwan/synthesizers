@@ -122,10 +122,10 @@ def main():
     output_info = transformer.output_info
     Gtransformer = ImageTransformer(gside)       
     
+    K = 1 # the number of shadow models
     # generating synthetic data in batches accordingly to the total no. required
     steps = (n + m) // config["batch_size"] + 1
-    
-    for s in tqdm(range(10), desc="Generating shadow train and test datasets..."):
+    for s in tqdm(range(K), desc="Generating shadow train and test datasets..."):
         torch.manual_seed(s)
         
         data = []

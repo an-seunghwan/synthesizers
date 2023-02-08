@@ -226,7 +226,7 @@ def main():
     """Privacy Preservability""" # only continuous
     print("\nPrivacy Preservability...\n")
     
-    privacy = privacy_metrics(train[continuous], sample_df_scaled[continuous])
+    privacy = DCR_metric(train[continuous], sample_df_scaled[continuous])
     
     DCR = privacy
     # DCR = privacy[0, :3]
