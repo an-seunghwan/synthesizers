@@ -258,13 +258,13 @@ def main():
         if attr_num > len(continuous): break
         attr_compromised = continuous[:attr_num]
         for K in [1, 10, 100]:
-            precision, recall = attribute_disclosure(
+            acc, f1 = attribute_disclosure(
                 K, compromised, sample_df_scaled, attr_compromised, cut_points, len(continuous)
             )
-            print(f'AD Precision (S={attr_num},K={K}):', precision)
-            print(f'AD Recall (S={attr_num},K={K}):', recall)
-            wandb.log({f'AD Precision (S={attr_num},K={K})': precision})
-            wandb.log({f'AD Recall (S={attr_num},K={K})': recall})
+            print(f'AD Accuracy (S={attr_num},K={K}):', acc)
+            print(f'AD F1 (S={attr_num},K={K}):', f1)
+            wandb.log({f'AD Accuracy (S={attr_num},K={K})': acc})
+            wandb.log({f'AD F1 (S={attr_num},K={K})': f1})
     #%%
     """Regression"""
     if config["dataset"] == "covtype":
