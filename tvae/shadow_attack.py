@@ -49,7 +49,7 @@ def get_args(debug):
     
     parser.add_argument('--num', type=int, default=0, 
                         help='model version')
-    parser.add_argument('--dataset', type=str, default='credit', 
+    parser.add_argument('--dataset', type=str, default='covtype', 
                         help='Dataset options: covtype, credit, loan, adult, cabs, kings')
 
     if debug:
@@ -132,12 +132,13 @@ def main():
     for k in range(len(model_dirs)):
         df_train = pd.read_csv(f'./privacy/{config["dataset"]}/train_{config["seed"]}_synthetic{k}.csv', index_col=0)
         df_test = pd.read_csv(f'./privacy/{config["dataset"]}/test_{config["seed"]}_synthetic{k}.csv', index_col=0)
-        if np.min(df_train[target].to_numpy()) == 0:
-            targets.append(df_train[target].to_numpy())
-            targets_test.append(df_test[target].to_numpy())
-        else:
-            targets.append(df_train[target].to_numpy()-1)
-            targets_test.append(df_test[target].to_numpy()-1)
+        
+        # if np.min(df_train[target].to_numpy()) == 0:
+        #     targets.append(df_train[target].to_numpy())
+        #     targets_test.append(df_test[target].to_numpy())
+        # else:
+        #     targets.append(df_train[target].to_numpy()-1)
+        #     targets_test.append(df_test[target].to_numpy()-1)
         
         _, shadow_dataloader, shadow_transformer, _, _, _, _ = shadow_datasets.generate_dataset(
             config, df_train, df_test, device, random_state=0)
@@ -164,6 +165,18 @@ def main():
             zs.append(mean)
         zs = torch.cat(zs, dim=0)
         latents_test.append(zs)
+        
+        df_dummy = []
+        for d in discrete:
+            df_dummy.append(pd.get_dummies(df_train[d], prefix=d))
+        df_train = pd.concat([df_train.drop(columns=discrete)] + df_dummy, axis=1)
+        targets.append(df_train[[x for x in df_train.columns if x.startswith(target)]].to_numpy().argmax(axis=1))
+        
+        df_dummy = []
+        for d in discrete:
+            df_dummy.append(pd.get_dummies(df_test[d], prefix=d))
+        df_test = pd.concat([df_test.drop(columns=discrete)] + df_dummy, axis=1)
+        targets_test.append(df_test[[x for x in df_test.columns if x.startswith(target)]].to_numpy().argmax(axis=1))
     #%%
     """attack training records"""
     target_num = train[target].nunique()
@@ -248,12 +261,24 @@ def main():
     gt_latents_test = torch.cat(gt_latents_test, dim=0)
     #%%
     """attacker accuracy"""
-    if np.min(train[target].to_numpy()) == 0:
-        gt_targets = train[target].to_numpy()
-        gt_targets_test = test[target].to_numpy()
-    else:
-        gt_targets = train[target].to_numpy()-1
-        gt_targets_test = test[target].to_numpy()-1
+    df_dummy = []
+    for d in discrete:
+        df_dummy.append(pd.get_dummies(train[d], prefix=d))
+    train = pd.concat([train.drop(columns=discrete)] + df_dummy, axis=1)
+    gt_targets = train[[x for x in train.columns if x.startswith(target)]].to_numpy().argmax(axis=1)
+    
+    df_dummy = []
+    for d in discrete:
+        df_dummy.append(pd.get_dummies(test[d], prefix=d))
+    test = pd.concat([test.drop(columns=discrete)] + df_dummy, axis=1)
+    gt_targets_test = test[[x for x in test.columns if x.startswith(target)]].to_numpy().argmax(axis=1)
+    
+    # if np.min(train[target].to_numpy()) == 0:
+    #     gt_targets = train[target].to_numpy()
+    #     gt_targets_test = test[target].to_numpy()
+    # else:
+    #     gt_targets = train[target].to_numpy()-1
+    #     gt_targets_test = test[target].to_numpy()-1
     
     gt_latents = gt_latents[:len(gt_latents_test), :]
     gt_targets = gt_targets[:len(gt_latents_test)]
