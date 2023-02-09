@@ -27,7 +27,8 @@ from evaluation.evaluation import (
     regression_eval,
     classification_eval,
     goodness_of_fit,
-    privacy_metrics
+    DCR_metric,
+    attribute_disclosure
 )
 #%%
 import sys
@@ -199,9 +200,9 @@ def main():
     # wandb.log({'Goodness of Fit (1-Wasserstein)': W1})
     #%%
     """Privacy Preservability""" # only continuous
-    print("\nPrivacy Preservability...\n")
+    print("\nDistance to Cloesest Record...\n")
     
-    privacy = privacy_metrics(train[continuous], sample_df_scaled[continuous])
+    privacy = DCR_metric(train[continuous], sample_df_scaled[continuous])
     
     DCR = privacy
     # DCR = privacy[0, :3]
@@ -219,6 +220,27 @@ def main():
     # wandb.log({'NNDR (R&S)': NNDR[0]})
     # wandb.log({'NNDR (R)': NNDR[1]})
     # wandb.log({'NNDR (S)': NNDR[2]})
+    #%%
+    print("\nAttribute Disclosure...\n")
+    
+    cut_points = merge_discrete(sample_df_scaled.to_numpy(), len(continuous))
+    
+    compromised_idx = np.random.choice(range(len(train)), 
+                                       int(len(train) * 0.01), 
+                                       replace=False)
+    compromised = train.iloc[compromised_idx]
+    #%%
+    for attr_num in [1, 2, 3, 4, 5]:
+        if attr_num > len(continuous): break
+        attr_compromised = continuous[:attr_num]
+        for K in [1, 10, 100]:
+            acc, f1 = attribute_disclosure(
+                K, compromised, sample_df_scaled, attr_compromised, cut_points, len(continuous)
+            )
+            print(f'AD Accuracy (S={attr_num},K={K}):', acc)
+            print(f'AD F1 (S={attr_num},K={K}):', f1)
+            wandb.log({f'AD Accuracy (S={attr_num},K={K})': acc})
+            wandb.log({f'AD F1 (S={attr_num},K={K})': f1})
     #%%
     """Regression"""
     if config["dataset"] == "covtype":
