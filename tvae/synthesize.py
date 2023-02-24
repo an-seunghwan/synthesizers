@@ -30,6 +30,7 @@ from evaluation.evaluation import (
     DCR_metric,
     attribute_disclosure
 )
+from dython.nominal import associations
 #%%
 import sys
 import subprocess
@@ -109,6 +110,33 @@ def main():
     
     config["input_dim"] = transformer.output_dimensions
     #%%
+    """synthetic dataset"""
+    torch.manual_seed(config["seed"])
+    steps = len(train) // config["batch_size"] + 1
+    data = []
+    with torch.no_grad():
+        for _ in range(steps):
+            mean = torch.zeros(config["batch_size"], config["latent_dim"])
+            std = mean + 1
+            noise = torch.normal(mean=mean, std=std).to(device)
+            fake = model.decoder(noise)
+            fake = torch.tanh(fake)
+            data.append(fake.numpy())
+    data = np.concatenate(data, axis=0)
+    data = data[:len(train)]
+    sample_df = transformer.inverse_transform(data, model.sigma.detach().cpu().numpy())
+    #%%
+    """Correlation Structure"""
+    syn_asso = associations(
+        sample_df, nominal_columns=discrete,
+        compute_only=True)
+    true_asso = associations(
+        train, nominal_columns=discrete,
+        compute_only=True)
+    corr_dist = np.linalg.norm(true_asso["corr"] - syn_asso["corr"])
+    print('Corr Dist: {:.3f}'.format(corr_dist))
+    wandb.log({'Corr Dist': corr_dist})
+    #%%
     # preprocess
     train_mean = train[continuous].mean(axis=0)
     train_std = train[continuous].std(axis=0)
@@ -142,22 +170,6 @@ def main():
     else:
         raise ValueError('Not supported dataset!')
     #%%
-    """synthetic dataset"""
-    torch.manual_seed(config["seed"])
-    steps = len(train) // config["batch_size"] + 1
-    data = []
-    with torch.no_grad():
-        for _ in range(steps):
-            mean = torch.zeros(config["batch_size"], config["latent_dim"])
-            std = mean + 1
-            noise = torch.normal(mean=mean, std=std).to(device)
-            fake = model.decoder(noise)
-            fake = torch.tanh(fake)
-            data.append(fake.numpy())
-    data = np.concatenate(data, axis=0)
-    data = data[:len(train)]
-    sample_df = transformer.inverse_transform(data, model.sigma.detach().cpu().numpy())
-    
     df_dummy = []
     for d in discrete:
         df_dummy.append(pd.get_dummies(sample_df[d], prefix=d))
@@ -342,4 +354,24 @@ def main():
 #%%
 if __name__ == '__main__':
     main()
+#%%
+# covariates = [x for x in train.columns if not x.startswith(target)]
+# target_ = [x for x in train.columns if x.startswith(target)]
+# train_target = train[target_].idxmax(axis=1)
+
+# clf = RandomForestClassifier(random_state=0)
+# clf.fit(train[covariates], train_target)
+# #%%
+# print([(x, y) for x, y in zip(covariates, clf.feature_importances_)])
+# #%%
+# train, test, target = sample_df_scaled, test, target
+# #%%
+# covariates = [x for x in train.columns if not x.startswith(target)]
+# target_ = [x for x in train.columns if x.startswith(target)]
+# train_target = train[target_].idxmax(axis=1)
+
+# clf = RandomForestClassifier(random_state=0)
+# clf.fit(train[covariates], train_target)
+# #%%
+# print([(x, y) for x, y in zip(covariates, clf.feature_importances_)])
 #%%
