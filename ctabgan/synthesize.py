@@ -28,6 +28,7 @@ from evaluation.evaluation import (
     attribute_disclosure
 )
 from evaluation.simulation import set_random_seed
+from dython.nominal import associations
 
 from modules.datasets import generate_dataset
 from modules.data_preparation import DataPrep
@@ -122,6 +123,47 @@ def main():
     if not os.path.exists('./assets/{}'.format(config["dataset"])):
         os.makedirs('./assets/{}'.format(config["dataset"]))
     #%%
+    """Sampling Mechanism"""
+    n = len(train)
+    
+    # column information associated with the transformer fit to the pre-processed training data
+    output_info = transformer.output_info
+    Gtransformer = ImageTransformer(gside)       
+    
+    # generating synthetic data in batches accordingly to the total no. required
+    steps = n // config["batch_size"] + 1
+    data = []
+    for _ in range(steps):
+        # generating synthetic data using sampled noise and conditional vectors
+        noisez = torch.randn(config["batch_size"], config["latent_dim"], device=device)
+        condvec = cond_generator.sample(config["batch_size"])
+        c = condvec
+        c = torch.from_numpy(c).to(device)
+        noisez = torch.cat([noisez, c], dim=1)
+        noisez =  noisez.view(config["batch_size"], config["latent_dim"]+cond_generator.n_opt,1,1)
+        fake = generator(noisez)
+        faket = Gtransformer.inverse_transform(fake)
+        fakeact = apply_activate(faket,output_info)
+        data.append(fakeact.detach().cpu().numpy())
+
+    data = np.concatenate(data, axis=0)
+    
+    # applying the inverse transform and returning synthetic data in a similar form as the original pre-processed training data
+    result = transformer.inverse_transform(data)
+    
+    sample_df = data_prep.inverse_prep(result[0:n])
+    #%%
+    """Correlation Structure"""
+    syn_asso = associations(
+        sample_df, nominal_columns=discrete,
+        compute_only=True)
+    true_asso = associations(
+        train, nominal_columns=discrete,
+        compute_only=True)
+    corr_dist = np.linalg.norm(true_asso["corr"] - syn_asso["corr"])
+    print('Corr Dist: {:.3f}'.format(corr_dist))
+    wandb.log({'Corr Dist': corr_dist})
+    #%%
     # preprocess
     train_mean = train[continuous].mean(axis=0)
     train_std = train[continuous].std(axis=0)
@@ -154,36 +196,6 @@ def main():
         test = df.iloc[20000:]
     else:
         raise ValueError('Not supported dataset!')
-    #%%
-    """Sampling Mechanism"""
-    n = len(train)
-    
-    # column information associated with the transformer fit to the pre-processed training data
-    output_info = transformer.output_info
-    Gtransformer = ImageTransformer(gside)       
-    
-    # generating synthetic data in batches accordingly to the total no. required
-    steps = n // config["batch_size"] + 1
-    data = []
-    for _ in range(steps):
-        # generating synthetic data using sampled noise and conditional vectors
-        noisez = torch.randn(config["batch_size"], config["latent_dim"], device=device)
-        condvec = cond_generator.sample(config["batch_size"])
-        c = condvec
-        c = torch.from_numpy(c).to(device)
-        noisez = torch.cat([noisez, c], dim=1)
-        noisez =  noisez.view(config["batch_size"], config["latent_dim"]+cond_generator.n_opt,1,1)
-        fake = generator(noisez)
-        faket = Gtransformer.inverse_transform(fake)
-        fakeact = apply_activate(faket,output_info)
-        data.append(fakeact.detach().cpu().numpy())
-
-    data = np.concatenate(data, axis=0)
-    
-    # applying the inverse transform and returning synthetic data in a similar form as the original pre-processed training data
-    result = transformer.inverse_transform(data)
-    
-    sample_df = data_prep.inverse_prep(result[0:n])
     #%%
     df_dummy = []
     for d in discrete:
