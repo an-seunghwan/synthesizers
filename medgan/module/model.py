@@ -47,53 +47,44 @@ class GAN(nn.Module):
         xhat = self.dec(self.generator(z))
         return z, xhat
     
-    # def gumbel_sampling(self, size, eps = 1e-20):
-    #     U = torch.rand(size)
-    #     G = (- (U + eps).log() + eps).log()
-    #     return G
+    def gumbel_sampling(self, size, eps = 1e-20):
+        U = torch.rand(size)
+        G = (- (U + eps).log() + eps).log()
+        return G
     
-    # def generate_data(self, n, seed):
-    #     torch.random.manual_seed(seed)
+    def generate_data(self, n, seed):
+        torch.random.manual_seed(seed)
         
-    #     data = []
-    #     steps = n // self.config["batch_size"] + 1
+        data = []
+        steps = n // self.config["batch_size"] + 1
         
-    #     with torch.no_grad():
-    #         for _ in range(steps):
-    #             randn = torch.randn(self.config["batch_size"], self.config["latent_dim"]) # prior
-    #             gamma, beta = self.quantile_parameter(randn)
-
-    #             samples = []
-    #             for j in range(self.config["embedding_dim"]):
-    #                 alpha = torch.rand(self.config["batch_size"], 1)
-    #                 samples.append(self.quantile_function(alpha, gamma, beta, j))
-                        
-    #             samples = torch.cat(samples, dim=1)
-    #             data.append(samples)
-    #     data = torch.cat(data, dim=0)
-    #     data = data[:n, :]
-    #     data = self.dec(data)
-    #     return data
+        with torch.no_grad():
+            for _ in range(steps):
+                z = self.sampling(self.config["batch_size"])
+                data.append(self.forward(z)[1])
+        data = torch.cat(data, dim=0)
+        data = data[:n, :]
+        return data
     
-    # def postprocess(self, syndata, OutputInfo_list, colnames, discrete_dicts_reverse):
-    #     samples = []
-    #     st = 0
-    #     for j, info in enumerate(OutputInfo_list):
-    #         ed = st + info.dim
-    #         logit = syndata[:, st : ed]
+    def postprocess(self, syndata, OutputInfo_list, colnames, discrete_dicts_reverse):
+        samples = []
+        st = 0
+        for j, info in enumerate(OutputInfo_list):
+            ed = st + info.dim
+            logit = syndata[:, st : ed]
             
-    #         """Gumbel-Max Trick"""
-    #         G = self.gumbel_sampling(logit.shape)
-    #         _, logit = (nn.LogSoftmax(dim=1)(logit) + G).max(dim=1)
+            """Gumbel-Max Trick"""
+            G = self.gumbel_sampling(logit.shape)
+            _, logit = (nn.LogSoftmax(dim=1)(logit) + G).max(dim=1)
             
-    #         samples.append(logit.unsqueeze(1))
-    #         st = ed
+            samples.append(logit.unsqueeze(1))
+            st = ed
 
-    #     samples = torch.cat(samples, dim=1)
-    #     syndata = pd.DataFrame(samples.numpy(), columns=colnames)
+        samples = torch.cat(samples, dim=1)
+        syndata = pd.DataFrame(samples.numpy(), columns=colnames)
 
-    #     """reverse to original column names"""
-    #     for dis, disdict in zip(colnames, discrete_dicts_reverse):
-    #         syndata[dis] = syndata[dis].apply(lambda x:disdict.get(x))
-    #     return syndata
+        """reverse to original column names"""
+        for dis, disdict in zip(colnames, discrete_dicts_reverse):
+            syndata[dis] = syndata[dis].apply(lambda x:disdict.get(x))
+        return syndata
 #%%
