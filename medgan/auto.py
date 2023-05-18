@@ -128,21 +128,6 @@ def main():
     artifact.add_file(f'./assets/{config["dataset"]}_dec.pth'.format(config["dataset"]))
     artifact.add_file('./auto.py')
     #%%
-    """embedding dataset"""
-    emb = []
-    with torch.no_grad():
-        try:
-            for (x_batch, _) in tqdm.tqdm(iter(trainloader), desc="inner loop"):
-                x_batch = x_batch.to(device)
-                emb.append(enc(x_batch))
-        except:
-            for x_batch in tqdm.tqdm(iter(trainloader), desc="inner loop"):
-                x_batch = x_batch.to(device)
-                emb.append(enc(x_batch))
-    emb = torch.cat(emb, dim=0)
-    torch.save(emb, f'./assets/{config["dataset"]}_emb.pt')
-    artifact.add_file(f'./assets/{config["dataset"]}_emb.pt')
-    #%%
     wandb.log_artifact(artifact)
     wandb.config.update(config, allow_val_change=True)
     wandb.run.finish()
