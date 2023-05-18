@@ -122,7 +122,7 @@ def main():
     """model save"""
     torch.save(dec.state_dict(), f'./assets/{config["dataset"]}_dec.pth')
     artifact = wandb.Artifact(
-        'medGAN_{}'.format(config["dataset"]), 
+        'dec_medGAN_{}'.format(config["dataset"]), 
         type='model',
         metadata=config) # description=""
     artifact.add_file(f'./assets/{config["dataset"]}_dec.pth'.format(config["dataset"]))
