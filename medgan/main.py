@@ -134,6 +134,7 @@ def main():
         metadata=config) # description=""
     artifact.add_file(f'./assets/{config["dataset"]}_medGAN.pth'.format(config["dataset"]))
     artifact.add_file('./main.py')
+    artifact.add_file('./module/model.py')
     #%%
     wandb.log_artifact(artifact)
     wandb.config.update(config, allow_val_change=True)
