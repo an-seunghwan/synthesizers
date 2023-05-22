@@ -142,6 +142,7 @@ def main():
     # plt.show()
     plt.close()
     wandb.log({'Hamming Distance': wandb.Image(fig)})
+    wandb.log({'Hamming': np.quantile(hamming.flatten(), 0.05)})
     #%%
     """Proportion of one-hot vector"""
     syn_result = pd.get_dummies(syndata.astype(int).astype(str)).mean(axis=0)

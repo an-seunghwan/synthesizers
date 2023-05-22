@@ -19,53 +19,46 @@ class MyDataset(Dataset):
         return torch.FloatTensor(self.data[idx])
 #%%
 def build_dataset(config):
-    if config["dataset"] == "mnist":
-        """MNIST"""
-        dataset_ = datasets.MNIST(
-            root='data/',
-            train=True,
-            transform=transforms.ToTensor(),
-            download=True)
-        test_dataset_ = datasets.MNIST(
-            root='data/',
-            train=False,
-            transform=transforms.ToTensor(),
-            download=True)
-        return dataset_, test_dataset_
+    df_train = pd.read_csv(f'../data/{config["dataset"]}_train.csv', index_col=0).astype(int)
+    df_test = pd.read_csv(f'../data/{config["dataset"]}_test.csv', index_col=0).astype(int)
+    colnames = df_train.columns
     
-    elif config["dataset"] == "census":
-        """Census"""
-        df = pd.read_csv('../data/census_preprocessed.csv', index_col=0)
-        df = shuffle(df, random_state=config["seed"])
-        df = df.astype(int).astype(str)
-        with open('../assets/census_colnames.txt', 'r') as f:
-            colnames = f.read().splitlines() 
-        
-        test_len = 2000
-        train = df.iloc[:-test_len]
-        test = df.iloc[-test_len:]
-        
-        discrete_dicts = []
-        discrete_dicts_reverse = []
-        for dis in colnames:
-            discrete_dict = {x:i for i,x in enumerate(sorted(df[dis].unique()))}
-            discrete_dicts_reverse.append({i:x for i,x in enumerate(sorted(df[dis].unique()))})
-            df[dis] = df[dis].apply(lambda x: discrete_dict.get(x))
-            discrete_dicts.append(discrete_dict)
-        
-        df_dummy = []
-        for d in colnames:
-            df_dummy.append(pd.get_dummies(df[d], prefix=d))
-        
-        OutputInfo_list = []
-        for d, dummy in zip(colnames, df_dummy):
-            OutputInfo_list.append(OutputInfo(dummy.shape[1]))
-        
-        df = pd.concat(df_dummy, axis=1)
-        dataset_ = MyDataset(torch.from_numpy(df.iloc[:-test_len].to_numpy()).to(torch.float32))
-        
-        return dataset_, train, test, OutputInfo_list, discrete_dicts, discrete_dicts_reverse, colnames
-        
-    else:
-        raise ValueError('Not supported dataset!')
+    print("Unique category numbers...")
+    unique_num = []
+    for dis in colnames:
+        unique_num.append(len(df_train[dis].unique()))
+    print(unique_num)
+    
+    discrete_dicts = []
+    discrete_dicts_reverse = []
+    for dis in colnames:
+        discrete_dict = {x:i for i,x in enumerate(sorted(df_train[dis].unique()))}
+        discrete_dicts_reverse.append({i:x for i,x in enumerate(sorted(df_train[dis].unique()))})
+        df_train[dis] = df_train[dis].apply(lambda x: discrete_dict.get(x))
+        discrete_dicts.append(discrete_dict)
+    
+    df_dummy = []
+    for d in colnames:
+        df_dummy.append(pd.get_dummies(df_train[d], prefix=d))
+    
+    OutputInfo_list = []
+    for d, dummy in zip(colnames, df_dummy):
+        OutputInfo_list.append(OutputInfo(dummy.shape[1]))
+    
+    df_train_ = pd.concat(df_dummy, axis=1)
+    dataset_ = MyDataset(torch.from_numpy(df_train_.to_numpy()).to(torch.float32))
+    
+    return dataset_, df_train, df_test, OutputInfo_list, discrete_dicts, discrete_dicts_reverse, colnames
+#%%
+"""MNIST"""
+# dataset_ = datasets.MNIST(
+#     root='data/',
+#     train=True,
+#     transform=transforms.ToTensor(),
+#     download=True)
+# test_dataset_ = datasets.MNIST(
+#     root='data/',
+#     train=False,
+#     transform=transforms.ToTensor(),
+#     download=True)
 #%%

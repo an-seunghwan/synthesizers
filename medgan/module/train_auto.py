@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import Dataset
 #%%
-def train_mnist(trainloader, enc, dec, out, config, optimizer, device):
+def train_mnist(trainloader, enc, dec, optimizer, device):
     logs = {
         'loss': [], 
     }
@@ -33,7 +33,7 @@ def train_mnist(trainloader, enc, dec, out, config, optimizer, device):
     
     return logs
 #%%
-def train_census(trainloader, enc, dec, out, config, optimizer, device):
+def train_function(trainloader, enc, dec, out, optimizer, device):
     OutputInfo_list = out[3]
     logs = {
         'loss': [], 

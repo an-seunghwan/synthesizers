@@ -31,7 +31,7 @@ except:
 run = wandb.init(
     project="HDistVAE", 
     entity="anseunghwan",
-    tags=['medGAN'],
+    tags=['medGAN', 'AE'],
 )
 #%%
 import argparse
@@ -41,7 +41,7 @@ def get_args(debug):
     parser.add_argument('--seed', type=int, default=1, 
                         help='seed for repeatable results')
     parser.add_argument('--dataset', type=str, default='census', 
-                        help='Dataset options: mnist, census')
+                        help='Dataset options: mnist, census, survey')
     
     parser.add_argument("--embedding_dim", default=16, type=int,
                         help="the embedding dimension size")
@@ -74,10 +74,9 @@ def main():
         batch_size=config["batch_size"], 
         shuffle=True,
         drop_last=False)
-    #%%
+    
     if config["dataset"] == "mnist": config["p"] = 784
-    elif config["dataset"] == "census": config["p"] = dataset.p
-    else: raise ValueError('Not supported dataset!')
+    else: config["p"] = dataset.p
     #%%
     """AutoEncoder"""
     enc = nn.Sequential(
@@ -107,10 +106,16 @@ def main():
     import importlib
     train_module = importlib.import_module('module.train_auto')
     importlib.reload(train_module)
-    train_function = getattr(train_module, 'train_' + config["dataset"])
+    if config["dataset"] == 'mnist':
+        train_function = getattr(train_module, 'train_' + config["dataset"])
+    else:
+        train_function = getattr(train_module, 'train_function')
 
     for epoch in range(config["epochs"]):
-        logs = train_function(trainloader, enc, dec, out, config, optimizer, device)
+        if config["dataset"] == 'mnist':
+            logs = train_function(trainloader, enc, dec, optimizer, device)
+        else:
+            logs = train_function(trainloader, enc, dec, out, optimizer, device)
         
         print_input = "[epoch {:03d}]".format(epoch + 1)
         print_input += ''.join([', {}: {:.4f}'.format(x, np.mean(y)) for x, y in logs.items()])
@@ -125,8 +130,23 @@ def main():
         'dec_medGAN_{}'.format(config["dataset"]), 
         type='model',
         metadata=config) # description=""
-    artifact.add_file(f'./assets/{config["dataset"]}_dec.pth'.format(config["dataset"]))
+    artifact.add_file(f'./assets/{config["dataset"]}_dec.pth')
     artifact.add_file('./auto.py')
+    #%%
+    """embedding dataset"""
+    emb = []
+    with torch.no_grad():
+        try:
+            for (x_batch, _) in tqdm.tqdm(iter(trainloader), desc="inner loop"):
+                x_batch = x_batch.to(device)
+                emb.append(enc(x_batch))
+        except:
+            for x_batch in tqdm.tqdm(iter(trainloader), desc="inner loop"):
+                x_batch = x_batch.to(device)
+                emb.append(enc(x_batch))
+    emb = torch.cat(emb, dim=0)
+    torch.save(emb, f'./assets/{config["dataset"]}_emb.pt')
+    artifact.add_file(f'./assets/{config["dataset"]}_emb.pt')
     #%%
     wandb.log_artifact(artifact)
     wandb.config.update(config, allow_val_change=True)
