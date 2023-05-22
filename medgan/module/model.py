@@ -66,16 +66,15 @@ class GAN(nn.Module):
         data = data[:n, :]
         return data
     
-    def postprocess(self, syndata, OutputInfo_list, colnames, discrete_dicts_reverse):
+    def postprocess(self, syndata, OutputInfo_list, colnames, discrete_dicts, discrete_dicts_reverse):
         samples = []
         st = 0
         for j, info in enumerate(OutputInfo_list):
             ed = st + info.dim
             logit = syndata[:, st : ed]
             
-            """Gumbel-Max Trick"""
-            G = self.gumbel_sampling(logit.shape)
-            _, logit = (nn.LogSoftmax(dim=1)(logit) + G).max(dim=1)
+            """argmax"""
+            _, logit = logit.max(dim=1)
             
             samples.append(logit.unsqueeze(1))
             st = ed
@@ -85,6 +84,8 @@ class GAN(nn.Module):
 
         """reverse to original column names"""
         for dis, disdict in zip(colnames, discrete_dicts_reverse):
+            syndata[dis] = syndata[dis].apply(lambda x:disdict.get(x))
+        for dis, disdict in zip(colnames, discrete_dicts):
             syndata[dis] = syndata[dis].apply(lambda x:disdict.get(x))
         return syndata
 #%%

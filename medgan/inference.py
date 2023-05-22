@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import tqdm
 import matplotlib.pyplot as plt
+from statsmodels.distributions.empirical_distribution import ECDF
 
 import torch
 import torchvision.datasets as datasets
@@ -40,8 +41,8 @@ def get_args(debug):
     
     parser.add_argument('--num', type=int, default=0, 
                         help='model number')
-    parser.add_argument('--dataset', type=str, default='census', 
-                        help='Dataset options: mnist, census')
+    parser.add_argument('--dataset', type=str, default='survey', 
+                        help='Dataset options: mnist, census, survey')
     
     if debug:
         return parser.parse_args(args=[])
@@ -53,7 +54,7 @@ def main():
     config = vars(get_args(debug=False)) # default configuration
     
     """model load"""
-    artifact = wandb.use_artifact('anseunghwan/HDistVAE/medGAN_{}:v{}'.format(
+    artifact = wandb.use_artifact('anseunghwan/HDistVAE/{}_medGAN:v{}'.format(
         config["dataset"], config["num"]), type='model')
     for key, item in artifact.metadata.items():
         config[key] = item
@@ -66,11 +67,9 @@ def main():
     #%%
     out = build_dataset(config)
     dataset = out[0]
-    dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True)
 
     if config["dataset"] == "mnist": config["p"] = 784
-    elif config["dataset"] == "census": config["p"] = dataset.p
-    else: raise ValueError('Not supported dataset!')
+    else: config["p"] = dataset.p
     
     dec = nn.Sequential(
         nn.Linear(config["embedding_dim"], 32),
@@ -123,122 +122,146 @@ def main():
     with torch.no_grad():
         syndata = model.generate_data(n, seed=1)
 
-    syndata = model.postprocess(syndata, OutputInfo_list, colnames, discrete_dicts_reverse)
+    syndata = model.postprocess(syndata, OutputInfo_list, colnames, discrete_dicts, discrete_dicts_reverse)
     #%%
-    # computational issue -> sampling 5000
-    tmp1 = syndata.astype(int).to_numpy()[:5000, :]
-    tmp2 = train.astype(int).to_numpy()[:5000, :] # train
-
-    hamming = np.zeros((tmp1.shape[0], tmp2.shape[0]))
-    for i in tqdm.tqdm(range(len(tmp1))):
-        hamming[i, :] = (tmp2 - tmp1[[i]] != 0).mean(axis=1)
+    """Data utility"""
+    """1. KL-Divergence"""
+    def KLDivergence(a, b):
+        return np.sum(np.where(
+            a != 0, 
+            a * (np.log(a) - np.log(b)), 
+            0))
+    
+    KL = []
+    for col in tqdm.tqdm(syndata.columns, desc="KL-divergence..."):
+        prob_df = pd.merge(
+            pd.DataFrame(syndata[col].value_counts(normalize=True)).reset_index(),
+            pd.DataFrame(train[col].value_counts(normalize=True)).reset_index(),
+            how='outer',
+            on=col
+        )
+        prob_df = prob_df.fillna(1e-12)
+        KL.append(KLDivergence(prob_df['proportion_x'].to_numpy(), prob_df['proportion_y'].to_numpy()))
+    print(f"KL: {np.mean(KL):.3f}")
+    wandb.log({'KL': np.mean(KL)})
     #%%
-    fig = plt.figure(figsize=(6, 4))
-    plt.hist(hamming.flatten(), density=True, bins=20)
-    plt.axvline(np.quantile(hamming.flatten(), 0.05), color='red')
-    plt.xlabel('Hamming Dist', fontsize=13)
-    plt.ylabel('density', fontsize=13)
-    plt.savefig('./assets/medgan_census_hamming.png')
-    # plt.show()
-    plt.close()
-    wandb.log({'Hamming Distance': wandb.Image(fig)})
-    wandb.log({'Hamming': np.quantile(hamming.flatten(), 0.05)})
+    """2. Kolmogorov-Smirnov test"""
+    KS = []
+    for col in tqdm.tqdm(syndata.columns, desc="Kolmogorov-Smirnov test..."):
+        train_ecdf = ECDF(train[col])
+        syn_ecdf = ECDF(syndata[col])
+        KS.append(np.abs(train_ecdf(train[col]) - syn_ecdf(train[col])).max())
+    print(f"KS: {np.mean(KS):.3f}")
+    wandb.log({'KS': np.mean(KS)})
     #%%
-    """Proportion of one-hot vector"""
-    syn_result = pd.get_dummies(syndata.astype(int).astype(str)).mean(axis=0)
-    train_result = pd.get_dummies(train.astype(int).astype(str)).mean(axis=0)
-    test_result = pd.get_dummies(test.astype(int).astype(str)).mean(axis=0)
-
-    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    inter_cols = [x for x in train_result.index if x in syn_result]
-    # len(inter_cols) / len(syn_result)
-    ax[0].scatter(
-        syn_result[inter_cols], train_result[inter_cols],
+    """3. Support (Category) Coverage"""
+    coverage = 0
+    for col in tqdm.tqdm(syndata.columns, desc="Support (Category) Coverage..."):
+        coverage += len(syndata[col].unique()) / len(train[col].unique())
+    coverage /= len(syndata.columns)
+    print(f"Coverage: {coverage:.3f}")
+    wandb.log({'Coverage': coverage})
+    #%%
+    """4. MSE of dimension-wise probability"""
+    syn_dim_prob = pd.get_dummies(syndata.astype(int).astype(str)).mean(axis=0)
+    train_dim_prob = pd.get_dummies(train.astype(int).astype(str)).mean(axis=0)
+    dim_prob = pd.merge(
+        pd.DataFrame(syn_dim_prob).reset_index(),
+        pd.DataFrame(train_dim_prob).reset_index(),
+        how='outer',
+        on='index'
     )
-    ax[0].axline((0, 0), slope=1, color='red')
-    ax[0].set_xlim(0, 1)
-    ax[0].set_ylim(0, 1)
-    ax[0].set_xlabel('proportion(synthetic)', fontsize=14)
-    ax[0].set_ylabel('proportion(train)', fontsize=14)
-    inter_cols = [x for x in test_result.index if x in syn_result]
-    # len(inter_cols) / len(syn_result)
-    ax[1].scatter(
-        syn_result[inter_cols], test_result[inter_cols],
+    dim_prob = dim_prob.fillna(0)
+    mse_dim_prob = np.linalg.norm(dim_prob.iloc[:, 1].to_numpy() - dim_prob.iloc[:, 2].to_numpy())
+    print(f"DimProb: {mse_dim_prob:.3f}")
+    wandb.log({'DimProb': mse_dim_prob})
+    #%%
+    fig = plt.figure(figsize=(5, 5))
+    plt.scatter(
+        dim_prob.iloc[:, 1].to_numpy(), # synthetic
+        dim_prob.iloc[:, 2].to_numpy(), # train
     )
-    ax[1].axline((0, 0), slope=1, color='red')
-    ax[1].set_xlim(0, 1)
-    ax[1].set_ylim(0, 1)
-    ax[1].set_xlabel('proportion(synthetic)', fontsize=14)
-    ax[1].set_ylabel('proportion(test)', fontsize=14)
-    plt.savefig('./assets/medgan_census_proportion.png')
+    plt.axline((0, 0), slope=1, color='red')
+    plt.xlim(0, 1)
+    plt.ylim(0, 1)
+    plt.xlabel('synthetic', fontsize=14)
+    plt.ylabel('train', fontsize=14)
+    plt.savefig('./assets/census_proportion.png')
     # plt.show()
     plt.close()
     wandb.log({'Proportion': wandb.Image(fig)})
     #%%
-    """(MLu) Classification accuracy 
-    -> TOO MUCH COMPUTATIONAL COST 
-    1) choose subset of covariates
-    2) Logistic regression (simple model)"""
-    import warnings
-    warnings.filterwarnings("ignore")
-    # from catboost import CatBoostClassifier
-
-    from sklearn.linear_model import LogisticRegression
-
-    # test.describe().transpose()
-    # target = 'MODEM'
-
+    """5. Pairwise correlation difference (PCD)"""
+    syn_corr = np.corrcoef(syndata.T)
+    train_corr = np.corrcoef(train.T)
+    pcd = np.linalg.norm(syn_corr - train_corr)
+    print(f"PCD(Pearson): {pcd:.3f}")
+    wandb.log({'PCD(Pearson)': pcd})
+    #%%
+    """6. Kendall's tau rank correlation"""
+    syn_tau = syndata.corr(method='kendall')
+    train_tau = train.corr(method='kendall')
+    pcd = np.linalg.norm(syn_tau - train_tau)
+    print(f"PCD(Kendall): {pcd:.3f}")
+    wandb.log({'PCD(Kendall)': pcd})
+    #%%
+    """7. log-cluster"""
+    from sklearn.cluster import KMeans
+    k = 20
+    kmeans = KMeans(n_clusters=k, random_state=config["seed"])
+    kmeans.fit(pd.concat([train, syndata], axis=0))
+    
+    logcluster = 0
+    for c in range(k):
+        n_total = (kmeans.labels_ == c).sum()
+        n_train = (kmeans.labels_[:len(train)] == c).sum()
+        logcluster += (n_train / n_total - 0.5) ** 2
+    logcluster /= k
+    logcluster = np.log(logcluster)
+    print(f"logcluster: {logcluster:.3f}")
+    wandb.log({'logcluster': logcluster})
+    #%%
+    """8. MSE of variable-wise prediction"""
+    from sklearn.ensemble import RandomForestClassifier
+    
     acc_synthetic = []
-    acc_real = []
+    acc_train = []
     for target in test.columns:
         # synthetic
         covariates = [x for x in syndata.columns if x != target]
-        # clf = CatBoostClassifier(verbose=0, iterations=100, random_seed=0)
-        clf = LogisticRegression(
-            random_state=0, fit_intercept=True,
-            multi_class='ovr', max_iter=100)
+        clf = RandomForestClassifier(random_state=0)
         clf.fit(
             syndata[covariates], 
             syndata[target])
-            # cat_features=covariates)
         yhat = clf.predict(test[covariates])
         acc1 = (test[target].to_numpy() == yhat.squeeze()).mean()
         print('[{}] ACC(synthetic): {:.3f}'.format(target, acc1))
         
-        # real
-        covariates = [x for x in out[2].columns if x != target]
-        # clf = CatBoostClassifier(verbose=0, iterations=100, random_seed=0)
-        clf = LogisticRegression(
-            random_state=0, fit_intercept=True,
-            multi_class='ovr', max_iter=100)
+        # train
+        covariates = [x for x in train.columns if x != target]
+        clf = RandomForestClassifier(random_state=0)
         clf.fit(
             train[covariates],
             train[target])
-            # cat_features=covariates)
         yhat = clf.predict(test[covariates])
         acc2 = (test[target].to_numpy() == yhat.squeeze()).mean()
-        print('[{}] ACC(real): {:.3f}'.format(target, acc2))
+        print('[{}] ACC(train): {:.3f}'.format(target, acc2))
         
-        acc_synthetic.append((target, acc1))
-        acc_real.append((target, acc2))
-    #%%
-    synthetic_acc_mean = np.mean([x[1] for x in acc_synthetic])
-    real_acc_mean = np.mean([x[1] for x in acc_real])
-    wandb.log({'ACC(synthetic)': synthetic_acc_mean})
-    wandb.log({'ACC(real)': real_acc_mean})
+        acc_synthetic.append(acc1)
+        acc_train.append(acc2)
     
+    mse_var_pred = np.linalg.norm(np.array(acc_synthetic) - np.array(acc_train))    
+    print(f"VarPred: {mse_var_pred:.3f}")
+    wandb.log({'VarPred': mse_var_pred})
+    #%%
     fig = plt.figure(figsize=(5, 5))
-    # plt.bar(range(len(acc_real)), [x[1] - y[1] for x, y in zip(acc_real, acc_synthetic)])
-    plt.scatter(
-        [x[1] for x in acc_synthetic],
-        [x[1] for x in acc_real],
-    )
+    plt.scatter(acc_synthetic, acc_train)
     plt.axline((0, 0), slope=1, color='red')
-    plt.xlabel('ACC(synthetic)', fontsize=14)
-    plt.ylabel('ACC(train)', fontsize=14)
     plt.xlim(0, 1)
     plt.ylim(0, 1)
-    plt.savefig('./assets/medgan_census_acc.png')
+    plt.xlabel('ACC(synthetic)', fontsize=14)
+    plt.ylabel('ACC(train)', fontsize=14)
+    plt.savefig('./assets/census_acc.png')
     # plt.show()
     plt.close()
     wandb.log({'ACC': wandb.Image(fig)})
@@ -254,8 +277,8 @@ def main():
             ax.flatten()[j].imshow(syndata[j], cmap='gray_r')
             ax.flatten()[j].axis('off')
         plt.tight_layout()
-        plt.savefig('./assets/medgan_mnist.png')
-        # plt.savefig('./assets/medgan_cifar10.png')
+        plt.savefig('./assets/mnist.png')
+        # plt.savefig('./assets/cifar10.png')
         # plt.show()
         plt.close()
     #%%
@@ -264,4 +287,23 @@ def main():
 #%%
 if __name__ == '__main__':
     main()
+#%%
+# computational issue -> sampling 5000
+# tmp1 = syndata.astype(int).to_numpy()[:5000, :]
+# tmp2 = train.astype(int).to_numpy()[:5000, :] # train
+
+# hamming = np.zeros((tmp1.shape[0], tmp2.shape[0]))
+# for i in tqdm.tqdm(range(len(tmp1))):
+#     hamming[i, :] = (tmp2 - tmp1[[i]] != 0).mean(axis=1)
+# #%%
+# fig = plt.figure(figsize=(6, 4))
+# plt.hist(hamming.flatten(), density=True, bins=20)
+# plt.axvline(np.quantile(hamming.flatten(), 0.05), color='red')
+# plt.xlabel('Hamming Dist', fontsize=13)
+# plt.ylabel('density', fontsize=13)
+# plt.savefig('./assets/census_hamming.png')
+# # plt.show()
+# plt.close()
+# wandb.log({'Hamming Distance': wandb.Image(fig)})
+# wandb.log({'Hamming': np.quantile(hamming.flatten(), 0.05)})
 #%%

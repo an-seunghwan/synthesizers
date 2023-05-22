@@ -40,8 +40,8 @@ def get_args(debug):
     
     parser.add_argument('--seed', type=int, default=1, 
                         help='seed for repeatable results')
-    parser.add_argument('--dataset', type=str, default='census', 
-                        help='Dataset options: mnist, census')
+    parser.add_argument('--dataset', type=str, default='survey', 
+                        help='Dataset options: mnist, census, survey')
     
     parser.add_argument("--embedding_dim", default=16, type=int,
                         help="the embedding dimension size")
@@ -72,8 +72,7 @@ def main():
     dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True)
 
     if config["dataset"] == "mnist": config["p"] = 784
-    elif config["dataset"] == "census": config["p"] = dataset.p
-    else: raise ValueError('Not supported dataset!')
+    else: config["p"] = dataset.p
 
     dec = nn.Sequential(
         nn.Linear(config["embedding_dim"], 32),
@@ -129,7 +128,7 @@ def main():
     """model save"""
     torch.save(model.state_dict(), f'./assets/{config["dataset"]}_medGAN.pth')
     artifact = wandb.Artifact(
-        'medGAN_{}'.format(config["dataset"]), 
+        '{}_medGAN'.format(config["dataset"]), 
         type='model',
         metadata=config) # description=""
     artifact.add_file(f'./assets/{config["dataset"]}_medGAN.pth'.format(config["dataset"]))
