@@ -49,8 +49,11 @@ def get_args(debug):
                         help='batch size')
     parser.add_argument('--lr', default=0.001, type=float,
                         help='learning rate')
-    parser.add_argument('--l2reg', default=0.001, type=float,
+    parser.add_argument('--l2reg', default=0, type=float,
                         help='learning rate')
+    
+    parser.add_argument('--mc', default=True, type=bool,
+                        help='Multi-Categorical setting')
     
     if debug:
         return parser.parse_args(args=[])
@@ -74,16 +77,21 @@ def main():
     """AutoEncoder"""
     auto_model_module = importlib.import_module('module.model_auto')
     importlib.reload(auto_model_module)
+    if config["mc"]:
+        OutputInfo_list = out[3]
+        model_path = f'./assets/{config["dataset"]}_mc_dec.pth'
+    else:
+        OutputInfo_list = None
+        model_path = f'./assets/{config["dataset"]}_dec.pth'
     autoencoder = getattr(auto_model_module, 'AutoEncoder')(
         config, 
         [128, 32], 
-        [32, 128]).to(device)
-    autoencoder.train()
-
+        [32, 128], 
+        OutputInfo_list=OutputInfo_list).to(device)
     try:
-        autoencoder.decoder.load_state_dict(torch.load(f'./assets/{config["dataset"]}_dec.pth'))
+        autoencoder.decoder.load_state_dict(torch.load(model_path))
     except:
-        autoencoder.decoder.load_state_dict(torch.load(f'./assets/{config["dataset"]}_dec.pth', 
+        autoencoder.decoder.load_state_dict(torch.load(model_path, 
             map_location=torch.device('cpu')))
     #%%
     model_module = importlib.import_module('module.model')

@@ -49,10 +49,11 @@ def get_args(debug):
                         help='batch size')
     parser.add_argument('--lr', default=0.002, type=float,
                         help='learning rate')
-    parser.add_argument('--l2reg', default=0.001, type=float,
+    parser.add_argument('--l2reg', default=0, type=float,
                         help='learning rate')
     
-    parser.add_argument('--mc', action='store_true')
+    parser.add_argument('--mc', default=False, type=bool,
+                        help='Multi-Categorical setting')
   
     if debug:
         return parser.parse_args(args=[])
