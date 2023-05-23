@@ -130,7 +130,7 @@ def main():
         '{}_medGAN'.format(config["dataset"]), 
         type='model',
         metadata=config) # description=""
-    artifact.add_file(f'./assets/{config["dataset"]}_medGAN.pth'.format(config["dataset"]))
+    artifact.add_file(f'./assets/{config["dataset"]}_medGAN.pth')
     artifact.add_file('./medgan.py')
     artifact.add_file('./module/model.py')
     #%%

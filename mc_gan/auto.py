@@ -51,6 +51,8 @@ def get_args(debug):
                         help='learning rate')
     parser.add_argument('--l2reg', default=0.001, type=float,
                         help='learning rate')
+    
+    parser.add_argument('--mc', action='store_true')
   
     if debug:
         return parser.parse_args(args=[])
@@ -78,10 +80,15 @@ def main():
     """AutoEncoder"""
     auto_model_module = importlib.import_module('module.model_auto')
     importlib.reload(auto_model_module)
+    if config["mc"]:
+        OutputInfo_list = out[3]
+    else:
+        OutputInfo_list = None
     autoencoder = getattr(auto_model_module, 'AutoEncoder')(
         config, 
         [128, 32], 
-        [32, 128]).to(device)
+        [32, 128], 
+        OutputInfo_list=OutputInfo_list).to(device)
     autoencoder.train()
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -100,7 +107,7 @@ def main():
     train_function = getattr(train_module, 'train_function') # without MNIST option
 
     for epoch in range(config["epochs"]):
-        logs = train_function(trainloader, autoencoder, optimizer, device)
+        logs = train_function(trainloader, autoencoder, optimizer, config, device, epoch)
         
         print_input = "[epoch {:03d}]".format(epoch + 1)
         print_input += ''.join([', {}: {:.4f}'.format(x, np.mean(y)) for x, y in logs.items()])
@@ -110,12 +117,20 @@ def main():
         wandb.log({x : np.mean(y) for x, y in logs.items()})
     #%%
     """model save"""
-    torch.save(autoencoder.decoder.state_dict(), f'./assets/{config["dataset"]}_dec.pth')
-    artifact = wandb.Artifact(
-        'dec_medGAN_{}'.format(config["dataset"]), 
-        type='model',
-        metadata=config) # description=""
-    artifact.add_file(f'./assets/{config["dataset"]}_dec.pth')
+    if config["mc"]:
+        torch.save(autoencoder.decoder.state_dict(), f'./assets/{config["dataset"]}_mc_dec.pth')
+        artifact = wandb.Artifact(
+            'mc_dec_medGAN_{}'.format(config["dataset"]), 
+            type='model',
+            metadata=config) # description=""
+        artifact.add_file(f'./assets/{config["dataset"]}_mc_dec.pth')
+    else:
+        torch.save(autoencoder.decoder.state_dict(), f'./assets/{config["dataset"]}_dec.pth')
+        artifact = wandb.Artifact(
+            'dec_medGAN_{}'.format(config["dataset"]), 
+            type='model',
+            metadata=config) # description=""
+        artifact.add_file(f'./assets/{config["dataset"]}_dec.pth')
     artifact.add_file('./auto.py')
     artifact.add_file('./module/model_auto.py')
     #%%

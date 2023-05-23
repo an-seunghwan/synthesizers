@@ -16,3 +16,4 @@ data
 privacy
 *.pt
 sweep*
+__pycache__
