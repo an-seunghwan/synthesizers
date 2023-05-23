@@ -44,14 +44,14 @@ def get_args(debug):
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
-    parser.add_argument("--embedding_dim", default=128, type=int,
+    parser.add_argument("--embedding_dim", default=16, type=int,
                         help="the embedding dimension size")
     
-    parser.add_argument('--epochs', default=200, type=int,
+    parser.add_argument('--epochs', default=100, type=int,
                         help='the number of epochs')
     parser.add_argument('--batch_size', default=512, type=int,
                         help='batch size')
-    parser.add_argument('--lr', default=0.001, type=float,
+    parser.add_argument('--lr', default=0.002, type=float,
                         help='learning rate')
     parser.add_argument('--l2reg', default=0.001, type=float,
                         help='learning rate')
@@ -82,7 +82,10 @@ def main():
     """AutoEncoder"""
     auto_model_module = importlib.import_module('module.model_auto')
     importlib.reload(auto_model_module)
-    autoencoder = getattr(auto_model_module, 'AutoEncoder')(config, [128, 128], [128, 128]).to(device)
+    autoencoder = getattr(auto_model_module, 'AutoEncoder')(
+        config, 
+        [128, 32], 
+        [32, 128]).to(device)
     autoencoder.train()
     #%%
     optimizer = torch.optim.Adam(

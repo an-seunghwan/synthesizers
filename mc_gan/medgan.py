@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import tqdm
 import matplotlib.pyplot as plt
+import importlib
 
 import torch
 import torchvision.datasets as datasets
@@ -40,7 +41,7 @@ def get_args(debug):
     
     parser.add_argument('--seed', type=int, default=1, 
                         help='seed for repeatable results')
-    parser.add_argument('--dataset', type=str, default='survey', 
+    parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
     parser.add_argument("--embedding_dim", default=16, type=int,
@@ -48,11 +49,13 @@ def get_args(debug):
     parser.add_argument("--latent_dim", default=2, type=int,
                         help="the latent dimension size")
     
-    parser.add_argument('--epochs', default=200, type=int,
+    parser.add_argument('--epochs', default=1000, type=int,
                         help='the number of epochs')
-    parser.add_argument('--batch_size', default=256, type=int,
+    parser.add_argument('--batch_size', default=1024, type=int,
                         help='batch size')
     parser.add_argument('--lr', default=0.001, type=float,
+                        help='learning rate')
+    parser.add_argument('--l2reg', default=0.001, type=float,
                         help='learning rate')
     
     if debug:
@@ -73,52 +76,56 @@ def main():
 
     if config["dataset"] == "mnist": config["p"] = 784
     else: config["p"] = dataset.p
-
-    dec = nn.Sequential(
-        nn.Linear(config["embedding_dim"], 32),
-        nn.ELU(),
-        nn.Linear(32, 128),
-        nn.ELU(),
-        nn.Linear(128, config["p"]),
-        nn.Sigmoid(),
-    ).to(device)
+    #%%
+    """AutoEncoder"""
+    auto_model_module = importlib.import_module('module.model_auto')
+    importlib.reload(auto_model_module)
+    autoencoder = getattr(auto_model_module, 'AutoEncoder')(
+        config, 
+        [128, 32], 
+        [32, 128]).to(device)
+    autoencoder.train()
 
     try:
-        dec.load_state_dict(torch.load(f'./assets/{config["dataset"]}_dec.pth'))
+        autoencoder.decoder.load_state_dict(torch.load(f'./assets/{config["dataset"]}_dec.pth'))
     except:
-        dec.load_state_dict(torch.load(f'./assets/{config["dataset"]}_dec.pth', 
+        autoencoder.decoder.load_state_dict(torch.load(f'./assets/{config["dataset"]}_dec.pth', 
             map_location=torch.device('cpu')))
     #%%
-    import importlib
     model_module = importlib.import_module('module.model')
     importlib.reload(model_module)
 
-    model = getattr(model_module, 'GAN')(config, dec, device).to(device)
-    model.train()
+    discriminator = getattr(model_module, 'medGANDiscriminator')(
+        config["p"], hidden_sizes=(256, 128)).to(device)
+    generator = getattr(model_module, 'medGANGenerator')(
+        config["embedding_dim"]).to(device)
+    discriminator.train(), generator.train()
     #%%
     """Number of Parameters"""
     count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
-    num_params = count_parameters(model)
+    num_params = count_parameters(discriminator) + count_parameters(generator)
     print("Number of Parameters:", num_params)
     wandb.log({'Number of Parameters': num_params})
     #%%
     optimizer_D = torch.optim.Adam(
-        model.discriminator.parameters(), 
-        lr=config["lr"]
+        discriminator.parameters(), 
+        lr=config["lr"],
+        weight_decay=config["l2reg"]
     )
     optimizer_G = torch.optim.Adam(
-        list(model.generator.parameters()) + list(model.dec.parameters()), 
-        lr=config["lr"]
+        list(generator.parameters()) + list(autoencoder.decoder.parameters()), 
+        lr=config["lr"],
+        weight_decay=config["l2reg"]
     )
-
+    #%%
     import importlib
     train_module = importlib.import_module('module.train')
     importlib.reload(train_module)
 
     for epoch in range(config["epochs"]):
-        logs = train_module.train_GAN(dataloader, model, config, optimizer_D, optimizer_G, device)
+        logs = train_module.train_medGAN(dataloader, autoencoder, discriminator, generator, config, optimizer_D, optimizer_G, device)
         
-        print_input = "[epoch {:03d}]".format(epoch + 1)
+        print_input = "[epoch {:04d}]".format(epoch + 1)
         print_input += ''.join([', {}: {:.4f}'.format(x, np.mean(y)) for x, y in logs.items()])
         print(print_input)
         
@@ -126,7 +133,7 @@ def main():
         wandb.log({x : np.mean(y) for x, y in logs.items()})
     #%%
     """model save"""
-    torch.save(model.state_dict(), f'./assets/{config["dataset"]}_medGAN.pth')
+    torch.save(generator.state_dict(), f'./assets/{config["dataset"]}_medGAN.pth')
     artifact = wandb.Artifact(
         '{}_medGAN'.format(config["dataset"]), 
         type='model',

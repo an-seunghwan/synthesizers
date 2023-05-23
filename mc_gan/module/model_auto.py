@@ -19,7 +19,7 @@ class Encoder(nn.Module):
             layers.append(nn.Linear(input_dim, layer_size))
             layers.append(nn.ELU()) # nonlinear activation
             input_dim = layer_size
-        self.hidden_layers = nn.Sequential(*layers)
+        self.hidden_layers = nn.Sequential(*layers[:-1])
 
     def forward(self, input):
         return self.hidden_layers(input)
