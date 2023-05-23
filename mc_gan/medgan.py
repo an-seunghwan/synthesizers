@@ -10,11 +10,7 @@ import matplotlib.pyplot as plt
 import importlib
 
 import torch
-import torchvision.datasets as datasets
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader, Dataset
-import torch.nn as nn
-import torch.nn.functional as F
+from torch.utils.data import DataLoader
 
 from module.datasets import MyDataset, build_dataset
 #%%
@@ -99,7 +95,6 @@ def main():
         config["embedding_dim"]).to(device)
     discriminator.train(), generator.train()
     #%%
-    """Number of Parameters"""
     count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
     num_params = count_parameters(discriminator) + count_parameters(generator)
     print("Number of Parameters:", num_params)
@@ -116,7 +111,6 @@ def main():
         weight_decay=config["l2reg"]
     )
     #%%
-    import importlib
     train_module = importlib.import_module('module.train')
     importlib.reload(train_module)
 
@@ -137,7 +131,7 @@ def main():
         type='model',
         metadata=config) # description=""
     artifact.add_file(f'./assets/{config["dataset"]}_medGAN.pth'.format(config["dataset"]))
-    artifact.add_file('./main.py')
+    artifact.add_file('./medgan.py')
     artifact.add_file('./module/model.py')
     #%%
     wandb.log_artifact(artifact)

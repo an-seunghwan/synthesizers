@@ -84,6 +84,11 @@ def main():
         [32, 128]).to(device)
     autoencoder.train()
     #%%
+    count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
+    num_params = count_parameters(autoencoder)
+    print("Number of Parameters:", num_params)
+    wandb.log({'Number of Parameters': num_params})
+    #%%
     optimizer = torch.optim.Adam(
         autoencoder.parameters(), 
         lr=config["lr"],
