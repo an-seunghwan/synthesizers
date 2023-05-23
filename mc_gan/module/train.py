@@ -8,9 +8,6 @@ import tqdm
 
 import torch
 from torch import nn
-import torch.nn.functional as F
-from torch.utils.data import TensorDataset, DataLoader
-from torch.utils.data import Dataset
 from torch.autograd.variable import Variable
 #%%
 def train_medGAN(dataloader, autoencoder, discriminator, generator, config, optimizer_D, optimizer_G, device):

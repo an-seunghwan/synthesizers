@@ -7,9 +7,6 @@ https://github.com/rcamino/multi-categorical-gans/tree/master
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-import numpy as np
-import pandas as pd
 #%%
 class medGANDiscriminator(nn.Module):
     def __init__(self, input_dim, hidden_sizes):

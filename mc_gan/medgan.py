@@ -46,8 +46,6 @@ def get_args(debug):
     
     parser.add_argument("--embedding_dim", default=16, type=int,
                         help="the embedding dimension size")
-    parser.add_argument("--latent_dim", default=2, type=int,
-                        help="the latent dimension size")
     
     parser.add_argument('--epochs', default=1000, type=int,
                         help='the number of epochs')

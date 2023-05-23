@@ -10,11 +10,7 @@ import matplotlib.pyplot as plt
 import importlib
 
 import torch
-import torchvision.datasets as datasets
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader, Dataset
-import torch.nn as nn
-import torch.nn.functional as F
+from torch.utils.data import DataLoader
 
 from module.datasets import build_dataset
 #%%

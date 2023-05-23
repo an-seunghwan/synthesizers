@@ -4,8 +4,6 @@ import tqdm
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torch.utils.data import TensorDataset, DataLoader
-from torch.utils.data import Dataset
 #%%
 def train_function(trainloader, autoencoder, optimizer, device):
     logs = {
