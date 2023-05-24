@@ -47,7 +47,7 @@ def get_args(debug):
     
     parser.add_argument("--embedding_dim", default=64, type=int,
                         help="the embedding dimension size")
-    parser.add_argument("--hidden_dims", default=[64, 64], type=arg_as_list,
+    parser.add_argument("--hidden_dims", default=[100, 100], type=arg_as_list,
                         help="hidden dimensions for autoencoder")
     parser.add_argument("--hidden_dims_disc", default=[128, 64], type=arg_as_list,
                         help="hidden dimensions for discriminator")

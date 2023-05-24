@@ -44,7 +44,7 @@ def get_args(debug):
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
-    parser.add_argument("--embedding_dim", default=128, type=int, # noise_dim
+    parser.add_argument("--embedding_dim", default=64, type=int, # noise_dim
                         help="the embedding dimension size")
     parser.add_argument("--hidden_dims", default=[100, 100], type=arg_as_list,
                         help="hidden dimensions for autoencoder")
@@ -108,17 +108,17 @@ def main():
     model_module = importlib.import_module('module.model')
     importlib.reload(model_module)
 
-    discriminator = getattr(model_module, 'Discriminator')(
-        config["embedding_dim"], 
-        hidden_sizes=config["hidden_dims_disc"],
-        bn_decay=0,
-        critic=True).to(device)
     generator = getattr(model_module, 'Generator')(
         config["embedding_dim"], 
         config["embedding_dim"], 
         hidden_sizes=config["hidden_dims_gen"],
         bn_decay=0.1).to(device)
-    discriminator.train(), generator.train()
+    discriminator = getattr(model_module, 'Discriminator')(
+        config["embedding_dim"], 
+        hidden_sizes=config["hidden_dims_disc"],
+        bn_decay=0,
+        critic=True).to(device)
+    generator.train(), discriminator.train()
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
     num_params = count_parameters(discriminator) + count_parameters(generator)
