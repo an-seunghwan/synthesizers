@@ -41,7 +41,7 @@ def train_medGAN(dataloader, autoencoder, discriminator, generator, config, opti
         noise = Variable(torch.FloatTensor(len(x_batch), config["embedding_dim"]).normal_()).to(device)
         fake_code = generator(noise)
         if config["mc"]:
-            fake_features = autoencoder.decoder(fake_code, training=True, temperature=2/3, concat=True).detach()
+            fake_features = autoencoder.decoder(fake_code, training=True, temperature=config["tau"], concat=True).detach()
         else:
             fake_features = autoencoder.decoder(fake_code).detach()
         fake_pred = discriminator(fake_features)
@@ -55,10 +55,6 @@ def train_medGAN(dataloader, autoencoder, discriminator, generator, config, opti
         disc_loss = real_loss + fake_loss
         loss_.append(('disc_loss', disc_loss))
 
-        del disc_loss
-        del fake_loss
-        del real_loss
-        
         # train generator
         optimizer_G.zero_grad()
         generator.batch_norm_train(mode=True)
@@ -66,21 +62,18 @@ def train_medGAN(dataloader, autoencoder, discriminator, generator, config, opti
         noise = Variable(torch.FloatTensor(len(x_batch), config["embedding_dim"]).normal_()).to(device)
         gen_code = generator(noise)
         if config["mc"]:
-            gen_features = autoencoder.decoder(gen_code, training=True, temperature=2/3, concat=True).detach()
+            gen_features = autoencoder.decoder(gen_code, training=True, temperature=config["tau"], concat=True)
         else:
             gen_features = autoencoder.decoder(gen_code)
         gen_pred = discriminator(gen_features)
 
         smooth_label_ones = Variable(torch.FloatTensor(len(x_batch)).uniform_(0.9, 1)).to(device)
-
         gen_loss = criterion(gen_pred, smooth_label_ones)
         gen_loss.backward()
 
         optimizer_G.step()
         loss_.append(('gen_loss', gen_loss))
 
-        del gen_loss
-        
         """accumulate losses"""
         for x, y in loss_:
             logs[x] = logs.get(x) + [y.item()]

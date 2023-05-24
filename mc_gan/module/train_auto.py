@@ -11,7 +11,7 @@ def train_function(trainloader, autoencoder, optimizer, config, device, epoch):
     }
     
     """Gumbel-Softmax temperatur annealing"""
-    tau = np.maximum(5 * np.exp(-0.025 * epoch), 2/3)
+    tau = np.maximum(5 * np.exp(-0.025 * epoch), config["tau"])
     
     # with torch.autograd.set_detect_anomaly(True):
     for x_batch in tqdm.tqdm(iter(trainloader), desc="inner loop"):

@@ -12,7 +12,7 @@ class medGANDiscriminator(nn.Module):
     def __init__(self, input_dim, hidden_sizes):
         super(medGANDiscriminator, self).__init__()
 
-        previous_layer_size = input_dim * 2
+        previous_layer_size = input_dim * 2 # mini-batch averaging
         layers = []
         for layer_size in hidden_sizes:
             layers.append(nn.Linear(previous_layer_size, layer_size))

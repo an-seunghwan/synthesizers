@@ -4,9 +4,6 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 #%%
 import numpy as np
-import pandas as pd
-import tqdm
-import matplotlib.pyplot as plt
 import importlib
 
 import torch
@@ -31,17 +28,28 @@ run = wandb.init(
     tags=['medGAN'],
 )
 #%%
+import ast
+def arg_as_list(s):
+    v = ast.literal_eval(s)
+    if type(v) is not list:
+        raise argparse.ArgumentTypeError("Argument \"%s\" is not a list" % (s))
+    return v
+
 import argparse
 def get_args(debug):
     parser = argparse.ArgumentParser('parameters')
     
-    parser.add_argument('--seed', type=int, default=1, 
+    parser.add_argument('--seed', type=int, default=0, 
                         help='seed for repeatable results')
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
     parser.add_argument("--embedding_dim", default=16, type=int,
                         help="the embedding dimension size")
+    parser.add_argument("--hidden_dims", default=[128, 32], type=arg_as_list,
+                        help="hidden dimensions for autoencoder")
+    parser.add_argument("--hidden_dims_disc", default=[256, 128], type=arg_as_list,
+                        help="hidden dimensions for discriminator")
     
     parser.add_argument('--epochs', default=1000, type=int,
                         help='the number of epochs')
@@ -51,6 +59,8 @@ def get_args(debug):
                         help='learning rate')
     parser.add_argument('--l2reg', default=0, type=float,
                         help='learning rate')
+    parser.add_argument('--tau', default=0.666, type=float,
+                        help='temperature in Gumbel-Softmax')
     
     parser.add_argument('--mc', default=True, type=bool,
                         help='Multi-Categorical setting')
@@ -74,31 +84,38 @@ def main():
     if config["dataset"] == "mnist": config["p"] = 784
     else: config["p"] = dataset.p
     #%%
-    """AutoEncoder"""
     auto_model_module = importlib.import_module('module.model_auto')
     importlib.reload(auto_model_module)
+    auto_model_name = lambda x: f'dec_mc_medGAN_{config["dataset"]}' if x else f'dec_medGAN_{config["dataset"]}'
+    artifact = wandb.use_artifact(f'anseunghwan/HDistVAE/{auto_model_name(config["mc"])}:v{config["seed"]}', type='model')
+    model_dir = artifact.download()
+    
+    OutputInfo_list = None
     if config["mc"]:
         OutputInfo_list = out[3]
-        model_path = f'./assets/{config["dataset"]}_mc_dec.pth'
-    else:
-        OutputInfo_list = None
-        model_path = f'./assets/{config["dataset"]}_dec.pth'
     autoencoder = getattr(auto_model_module, 'AutoEncoder')(
         config, 
-        [128, 32], 
-        [32, 128], 
+        config["hidden_dims"], 
+        list(reversed(config["hidden_dims"])), 
         OutputInfo_list=OutputInfo_list).to(device)
+    
     try:
-        autoencoder.decoder.load_state_dict(torch.load(model_path))
+        model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
+        autoencoder.decoder.load_state_dict(
+            torch.load(
+                model_dir + '/' + model_name))
     except:
-        autoencoder.decoder.load_state_dict(torch.load(model_path, 
-            map_location=torch.device('cpu')))
+        model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
+        autoencoder.decoder.load_state_dict(
+            torch.load(
+                model_dir + '/' + model_name, map_location=torch.device('cpu')))
+    autoencoder.eval()
     #%%
     model_module = importlib.import_module('module.model')
     importlib.reload(model_module)
 
     discriminator = getattr(model_module, 'medGANDiscriminator')(
-        config["p"], hidden_sizes=(256, 128)).to(device)
+        config["p"], hidden_sizes=config["hidden_dims_disc"]).to(device)
     generator = getattr(model_module, 'medGANGenerator')(
         config["embedding_dim"]).to(device)
     discriminator.train(), generator.train()
@@ -133,12 +150,13 @@ def main():
         wandb.log({x : np.mean(y) for x, y in logs.items()})
     #%%
     """model save"""
-    torch.save(generator.state_dict(), f'./assets/{config["dataset"]}_medGAN.pth')
+    model_name = lambda x: f'mc_medGAN_{config["dataset"]}' if x else f'medGAN_{config["dataset"]}'
+    torch.save(generator.state_dict(), f'./assets/{model_name(config["mc"])}.pth')
     artifact = wandb.Artifact(
-        '{}_medGAN'.format(config["dataset"]), 
+        model_name(config["mc"]), 
         type='model',
         metadata=config) # description=""
-    artifact.add_file(f'./assets/{config["dataset"]}_medGAN.pth')
+    artifact.add_file(f'./assets/{model_name(config["mc"])}.pth')
     artifact.add_file('./medgan.py')
     artifact.add_file('./module/model.py')
     #%%

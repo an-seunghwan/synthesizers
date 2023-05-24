@@ -39,7 +39,7 @@ import argparse
 def get_args(debug):
     parser = argparse.ArgumentParser('parameters')
     
-    parser.add_argument('--seed', type=int, default=1, 
+    parser.add_argument('--seed', type=int, default=0, 
                         help='seed for repeatable results')
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
@@ -57,6 +57,8 @@ def get_args(debug):
                         help='learning rate')
     parser.add_argument('--l2reg', default=0, type=float,
                         help='learning rate')
+    parser.add_argument('--tau', default=0.666, type=float,
+                        help='temperature in Gumbel-Softmax')
     
     parser.add_argument('--mc', default=False, type=bool,
                         help='Multi-Categorical setting')
@@ -84,7 +86,6 @@ def main():
     if config["dataset"] == "mnist": config["p"] = 784
     else: config["p"] = dataset.p
     #%%
-    """AutoEncoder"""
     auto_model_module = importlib.import_module('module.model_auto')
     importlib.reload(auto_model_module)
     OutputInfo_list = None
