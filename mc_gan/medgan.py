@@ -9,6 +9,7 @@ import importlib
 import torch
 from torch.utils.data import DataLoader
 
+from module.utils import str2bool
 from module.datasets import MyDataset, build_dataset
 #%%
 import sys
@@ -44,11 +45,11 @@ def get_args(debug):
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
-    parser.add_argument("--embedding_dim", default=16, type=int,
+    parser.add_argument("--embedding_dim", default=64, type=int,
                         help="the embedding dimension size")
-    parser.add_argument("--hidden_dims", default=[128, 32], type=arg_as_list,
+    parser.add_argument("--hidden_dims", default=[64, 64], type=arg_as_list,
                         help="hidden dimensions for autoencoder")
-    parser.add_argument("--hidden_dims_disc", default=[256, 128], type=arg_as_list,
+    parser.add_argument("--hidden_dims_disc", default=[128, 64], type=arg_as_list,
                         help="hidden dimensions for discriminator")
     
     parser.add_argument('--epochs', default=1000, type=int,
@@ -57,12 +58,12 @@ def get_args(debug):
                         help='batch size')
     parser.add_argument('--lr', default=0.001, type=float,
                         help='learning rate')
-    parser.add_argument('--l2reg', default=0, type=float,
+    parser.add_argument('--l2reg', default=0.001, type=float,
                         help='learning rate')
     parser.add_argument('--tau', default=0.666, type=float,
                         help='temperature in Gumbel-Softmax')
     
-    parser.add_argument('--mc', default=True, type=bool,
+    parser.add_argument('--mc', default=False, type=str2bool,
                         help='Multi-Categorical setting')
     
     if debug:
