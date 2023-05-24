@@ -33,7 +33,6 @@ def train_function(trainloader, autoencoder, optimizer, config, device, epoch):
                 ed = st + info.dim
                 batch_target = torch.argmax(x_batch[:, st : ed], dim=1)
                 loss += F.cross_entropy(xhat[i], batch_target)
-                # loss -= (x_batch[:, st : ed] * torch.log(xhat[i] + 1e-6)).sum(dim=1).mean()
                 st = ed
         else:
             loss = F.binary_cross_entropy(xhat, x_batch, reduction='none').sum(axis=1).mean()

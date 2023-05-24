@@ -23,7 +23,7 @@ class Encoder(nn.Module):
             layers.append(nn.Linear(input_dim, layer_size))
             layers.append(nn.ELU()) # nonlinear activation
             input_dim = layer_size
-        self.hidden_layers = nn.Sequential(*layers[:-1])
+        self.hidden_layers = nn.Sequential(*layers[:-1]) # exclude last nonlinear activation
 
     def forward(self, input):
         return self.hidden_layers(input)
@@ -38,15 +38,14 @@ class Decoder(nn.Module):
             hidden_layers.append(nn.Linear(previous_layer_size, layer_size))
             hidden_layers.append(nn.ELU()) # nonlinear activation
             previous_layer_size = layer_size
-        hidden_layers.extend(
-            [nn.Linear(previous_layer_size, output_dim),
-            nn.Sigmoid()]
-        )
+        hidden_layers.extend([
+            nn.Linear(previous_layer_size, output_dim),
+            nn.Sigmoid()
+        ])
         self.hidden_layers = nn.Sequential(*hidden_layers)
 
     def forward(self, input):
-        out = self.hidden_layers(input)
-        return out
+        return self.hidden_layers(input)
 #%%
 class CategoricalDecoder(nn.Module):
     def __init__(self, embedding_dim, hidden_sizes=[], OutputInfo_list=None):
