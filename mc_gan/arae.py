@@ -123,7 +123,7 @@ def main():
     count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
     num_params = count_parameters(discriminator) + count_parameters(generator)
     print("Number of Parameters:", num_params)
-    # wandb.log({'Number of Parameters': num_params})
+    wandb.log({'Number of Parameters': num_params})
     #%%
     optimizer_AE = torch.optim.Adam(
         autoencoder.parameters(), 
@@ -145,7 +145,7 @@ def main():
     importlib.reload(train_module)
 
     for epoch in range(config["epochs"]):
-        logs = train_module.train_medGAN(
+        logs = train_module.train_ARAE(
             dataloader, autoencoder, discriminator, generator, config, optimizer_AE, optimizer_D, optimizer_G, epoch, device)
         
         print_input = "[epoch {:04d}]".format(epoch + 1)
