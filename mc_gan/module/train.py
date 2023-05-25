@@ -107,7 +107,7 @@ def train_ARAE(dataloader, autoencoder, discriminator, generator, config, optimi
         
         loss_ = []
         
-        """1. train autoencoder"""
+        """1. train autoencoder (mutli-categorical)"""
         optimizer_AE.zero_grad()
         
         code = autoencoder.encoder(x_batch)
