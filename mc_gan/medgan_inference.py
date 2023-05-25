@@ -76,15 +76,14 @@ def main():
         config["embedding_dim"]).to(device)
     
     try:
-        model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
         generator.load_state_dict(
             torch.load(
-                model_dir + '/' + model_name))
+                model_dir + '/' + [x for x in os.listdir(model_dir) if x.endswith('pth')][0]))
     except:
-        model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
         generator.load_state_dict(
             torch.load(
-                model_dir + '/' + model_name, map_location=torch.device('cpu')))
+                model_dir + '/' + [x for x in os.listdir(model_dir) if x.endswith('pth')][0], 
+                map_location=torch.device('cpu')))
     generator.eval()
     #%%
     out = build_dataset(config)
@@ -110,15 +109,14 @@ def main():
         OutputInfo_list=OutputInfo_list).to(device)
     
     try:
-        model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
         autoencoder.decoder.load_state_dict(
             torch.load(
-                model_dir + '/' + model_name))
+                model_dir + '/' + [x for x in os.listdir(model_dir) if x.endswith('pth')][0]))
     except:
-        model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
         autoencoder.decoder.load_state_dict(
             torch.load(
-                model_dir + '/' + model_name, map_location=torch.device('cpu')))
+                model_dir + '/' + [x for x in os.listdir(model_dir) if x.endswith('pth')][0], 
+                map_location=torch.device('cpu')))
     autoencoder.eval()
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -152,7 +150,7 @@ def main():
     
     syndata = postprocess(data, OutputInfo_list, colnames, discrete_dicts, discrete_dicts_reverse)
     #%%
-    metrics = evaluate(syndata, train, test, config)
+    metrics = evaluate(syndata, train, test, config, model_name)
     
     print(f"KL: {metrics.KL:.3f}")
     wandb.log({'KL': metrics.KL})

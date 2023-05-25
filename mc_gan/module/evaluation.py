@@ -11,7 +11,7 @@ Metrics = namedtuple(
     'Metrics', 
     ['KL', 'KS', 'coverage', 'mse_dim_prob', 'Proportion', 'PCD_Pearson', 'PCD_Kendall', 'logcluster', 'VarPred', 'ACC'])
 #%%
-def evaluate(syndata, train, test, config, show=False):
+def evaluate(syndata, train, test, config, model_name, show=False):
     """Data utility"""
     """1. KL-Divergence"""
     def KLDivergence(a, b):
@@ -66,7 +66,7 @@ def evaluate(syndata, train, test, config, show=False):
     plt.ylim(0, 1)
     plt.xlabel('synthetic', fontsize=14)
     plt.ylabel('train', fontsize=14)
-    plt.savefig('./assets/census_proportion.png')
+    plt.savefig(f'./assets/{model_name}_census_proportion.png')
     if show: plt.show()
     # plt.show()
     plt.close()
@@ -134,7 +134,7 @@ def evaluate(syndata, train, test, config, show=False):
     plt.ylim(0, 1)
     plt.xlabel('ACC(synthetic)', fontsize=14)
     plt.ylabel('ACC(train)', fontsize=14)
-    plt.savefig('./assets/census_acc.png')
+    plt.savefig(f'./assets/{model_name}_census_acc.png')
     if show: plt.show()
     # plt.show()
     plt.close()

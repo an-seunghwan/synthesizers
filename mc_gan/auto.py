@@ -126,12 +126,12 @@ def main():
     #%%
     """model save"""
     model_name = lambda x: f'dec_mc_medGAN_{config["dataset"]}' if x else f'dec_medGAN_{config["dataset"]}'
-    torch.save(autoencoder.decoder.state_dict(), f'./assets/{model_name(config["mc"])}.pth')
+    torch.save(autoencoder.decoder.state_dict(), f'./assets/model/{model_name(config["mc"])}.pth')
     artifact = wandb.Artifact(
         model_name(config["mc"]), 
         type='model',
         metadata=config) # description=""
-    artifact.add_file(f'./assets/{model_name(config["mc"])}.pth')
+    artifact.add_file(f'./assets/model/{model_name(config["mc"])}.pth')
     artifact.add_file('./auto.py')
     artifact.add_file('./module/model_auto.py')
     #%%

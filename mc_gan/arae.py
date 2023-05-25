@@ -159,14 +159,14 @@ def main():
     #%%
     """model save"""
     model_name = f'mc_ARAE_{config["dataset"]}'
-    torch.save(generator.state_dict(), f'./assets/generator_{model_name}.pth')
-    torch.save(autoencoder.state_dict(), f'./assets/autoencoder_{model_name}.pth')
+    torch.save(generator.state_dict(), f'./assets/model/generator_{model_name}.pth')
+    torch.save(autoencoder.state_dict(), f'./assets/model/autoencoder_{model_name}.pth')
     artifact = wandb.Artifact(
         model_name, 
         type='model',
         metadata=config) # description=""
-    artifact.add_file(f'./assets/generator_{model_name}.pth')
-    artifact.add_file(f'./assets/autoencoder_{model_name}.pth')
+    artifact.add_file(f'./assets/model/generator_{model_name}.pth')
+    artifact.add_file(f'./assets/model/autoencoder_{model_name}.pth')
     artifact.add_file('./arae.py')
     artifact.add_file('./module/model.py')
     #%%
