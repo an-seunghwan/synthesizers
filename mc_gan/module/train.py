@@ -27,7 +27,7 @@ def train_medGAN(dataloader, autoencoder, discriminator, generator, config, opti
         
         loss_ = []
         
-        # train discriminator
+        """1. train discriminator"""
         optimizer_D.zero_grad()
         generator.batch_norm_train(mode=False)
         
@@ -51,14 +51,12 @@ def train_medGAN(dataloader, autoencoder, discriminator, generator, config, opti
         fake_loss = criterion(fake_pred, label_zeros)
         fake_loss.backward()
 
-        # finally update the discriminator weights
-        # using two separated batches is another trick to improve GAN training
         optimizer_D.step()
 
         disc_loss = real_loss + fake_loss
         loss_.append(('disc_loss', disc_loss))
 
-        # train generator
+        """2. train generator"""
         optimizer_G.zero_grad()
         generator.batch_norm_train(mode=True)
 
@@ -109,7 +107,7 @@ def train_ARAE(dataloader, autoencoder, discriminator, generator, config, optimi
         
         loss_ = []
         
-        # train autoencoder
+        """1. train autoencoder"""
         optimizer_AE.zero_grad()
         
         code = autoencoder.encoder(x_batch)
@@ -126,20 +124,19 @@ def train_ARAE(dataloader, autoencoder, discriminator, generator, config, optimi
         ae_loss.backward()
         optimizer_AE.step()
         
-        # train discriminator & autoencoder
-        optimizer_AE.zero_grad()
+        """2. train discriminator (critic)"""
         optimizer_D.zero_grad()
         
         # first train the discriminator only with real data
         real_code = autoencoder.encoder(x_batch)
-        real_code = add_noise_to_code(real_code, ae_noise_radius, device)
+        real_code = add_noise_to_code(real_code, ae_noise_radius, device).detach() # do not propagate to the autoencoder
         real_pred = discriminator(real_code)
         real_loss = - real_pred.mean(dim=0).view(1)
         real_loss.backward()
         
         # then train the discriminator only with fake data
         noise = Variable(torch.FloatTensor(len(x_batch), config["embedding_dim"]).normal_()).to(device)
-        fake_code = generator(noise).detach()  # do not propagate to the generator
+        fake_code = generator(noise).detach() # do not propagate to the generator
         fake_pred = discriminator(fake_code)
         fake_loss = fake_pred.mean(dim=0).view(1)
         fake_loss.backward()
@@ -151,20 +148,35 @@ def train_ARAE(dataloader, autoencoder, discriminator, generator, config, optimi
         disc_loss = real_loss + fake_loss + gradient_penalty
         loss_.append(('disc_loss', disc_loss))
         
-        optimizer_AE.step()
         optimizer_D.step()
         
-        # train generator
+        # weight-clipping
+        with torch.no_grad():
+            for param in discriminator.parameters():
+                param.clamp_(-config["clipping"], config["clipping"])
+        
+        """3. train autoencoder(encoder) & generator"""
+        optimizer_AE.zero_grad()
         optimizer_G.zero_grad()
 
+        # train autoencoder(encoder) with real data
+        real_code = autoencoder.encoder(x_batch)
+        real_code = add_noise_to_code(real_code, ae_noise_radius, device)
+        real_pred = discriminator(real_code)
+        real_loss = real_pred.mean(dim=0).view(1)
+        real_loss.backward()
+        
+        # train generator with fake data
         noise = Variable(torch.FloatTensor(len(x_batch), config["embedding_dim"]).normal_()).to(device)
         gen_code = generator(noise)
         fake_pred = discriminator(gen_code)
         fake_loss = - fake_pred.mean(dim=0).view(1)
         fake_loss.backward()
         
-        loss_.append(('gen_loss', fake_loss))
+        gen_loss = real_loss + fake_loss
+        loss_.append(('gen_loss', gen_loss))
 
+        optimizer_AE.step()
         optimizer_G.step()
 
         """accumulate losses"""

@@ -57,9 +57,9 @@ def get_args(debug):
                         help='the number of epochs')
     parser.add_argument('--batch_size', default=1024, type=int,
                         help='batch size')
-    parser.add_argument('--lr', default=0.001, type=float,
+    parser.add_argument('--lr', default=5e-4, type=float,
                         help='learning rate')
-    parser.add_argument('--l2reg', default=0.001, type=float,
+    parser.add_argument('--l2reg', default=0, type=float,
                         help='learning rate')
     parser.add_argument('--tau', default=0.666, type=float,
                         help='temperature in Gumbel-Softmax')
@@ -70,6 +70,8 @@ def get_args(debug):
                         help='Anneal the noise radius by this value after every epoch.')
     parser.add_argument('--penalty', default=0.1, type=float,
                         help='WGAN-GP gradient penalty lambda.')
+    parser.add_argument('--clipping', default=0.01, type=float,
+                        help='weight-clipping of critic network.')
     parser.add_argument('--mc', default=True, type=bool,
                         help='Multi-Categorical setting')
     
@@ -132,7 +134,7 @@ def main():
     )
     optimizer_D = torch.optim.Adam(
         discriminator.parameters(), 
-        lr=config["lr"],
+        lr=config["lr"] * 0.1,
         weight_decay=config["l2reg"]
     )
     optimizer_G = torch.optim.Adam(
@@ -156,7 +158,7 @@ def main():
         wandb.log({x : np.mean(y) for x, y in logs.items()})
     #%%
     """model save"""
-    model_name = 'mc_ARAE_{config["dataset"]}'
+    model_name = f'mc_ARAE_{config["dataset"]}'
     torch.save(generator.state_dict(), f'./assets/generator_{model_name}.pth')
     torch.save(autoencoder.state_dict(), f'./assets/autoencoder_{model_name}.pth')
     artifact = wandb.Artifact(
