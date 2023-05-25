@@ -17,3 +17,4 @@ privacy
 *.pt
 sweep*
 __pycache__
+model
