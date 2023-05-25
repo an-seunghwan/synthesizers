@@ -196,19 +196,3 @@ if __name__ == '__main__':
 # wandb.log({'Hamming Distance': wandb.Image(fig)})
 # wandb.log({'Hamming': np.quantile(hamming.flatten(), 0.05)})
 #%%
-# if config["dataset"] == 'mnist':
-#     n = 100
-#     with torch.no_grad():
-#         syndata = model.generate_data(n, seed=1)
-#     # syndata = torch.where(syndata > 0.5, 1, 0)
-#     syndata = syndata.reshape(-1, 28, 28)
-#     fig, ax = plt.subplots(10, 10, figsize=(20, 20))
-#     for j in range(n):
-#         ax.flatten()[j].imshow(syndata[j], cmap='gray_r')
-#         ax.flatten()[j].axis('off')
-#     plt.tight_layout()
-#     plt.savefig('./assets/mnist.png')
-#     # plt.savefig('./assets/cifar10.png')
-#     # plt.show()
-#     plt.close()
-#%%
