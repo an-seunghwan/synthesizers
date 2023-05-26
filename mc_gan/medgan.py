@@ -59,7 +59,7 @@ def get_args(debug):
     parser.add_argument('--lr', default=0.001, type=float,
                         help='learning rate')
     parser.add_argument('--l2reg', default=0.001, type=float,
-                        help='learning rate')
+                        help='L2 regularization: weight decay')
     parser.add_argument('--tau', default=0.666, type=float,
                         help='temperature in Gumbel-Softmax')
     
