@@ -25,7 +25,7 @@ except:
 run = wandb.init(
     project="HDistVAE", 
     entity="anseunghwan",
-    tags=['MC-Gumbel'],
+    tags=['MC-WGAN-GP'],
 )
 #%%
 import ast
@@ -62,14 +62,8 @@ def get_args(debug):
     parser.add_argument('--tau', default=0.666, type=float,
                         help='temperature in Gumbel-Softmax')
     
-    parser.add_argument('--noise_radius', default=0.2, type=float,
-                        help='Gaussian noise standard deviation for the latent code (autoencoder regularization).')
-    parser.add_argument('--noise_anneal', default=0.995, type=float,
-                        help='Anneal the noise radius by this value after every epoch.')
     parser.add_argument('--penalty', default=0.1, type=float,
                         help='WGAN-GP gradient penalty lambda.')
-    parser.add_argument('--clipping', default=0.01, type=float,
-                        help='weight-clipping of critic network.')
     parser.add_argument('--mc', default=True, type=bool,
                         help='Multi-Categorical setting')
     
@@ -104,8 +98,8 @@ def main():
     discriminator = getattr(model_module, 'Discriminator')(
         config["p"], 
         hidden_sizes=config["hidden_dims_disc"],
-        bn_decay=0.1,
-        critic=False).to(device)
+        bn_decay=0,
+        critic=True).to(device)
     generator.train(mode=True), discriminator.train(mode=True)
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters())
@@ -128,7 +122,7 @@ def main():
     importlib.reload(train_module)
 
     for epoch in range(config["epochs"]):
-        logs = train_module.train_Gumbel(
+        logs = train_module.train_WGAN_GP(
             dataloader, discriminator, generator, config, optimizer_D, optimizer_G, epoch, device)
         
         print_input = "[epoch {:04d}]".format(epoch + 1)
@@ -139,7 +133,7 @@ def main():
         wandb.log({x : np.mean(y) for x, y in logs.items()})
     #%%
     """model save"""
-    model_name = f'mc_Gumbel_{config["dataset"]}'
+    model_name = f'mc_WGAN_GP_{config["dataset"]}'
     torch.save(generator.state_dict(), f'./assets/model/generator_{model_name}.pth')
     artifact = wandb.Artifact(
         model_name, 

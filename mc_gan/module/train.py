@@ -96,7 +96,7 @@ def train_ARAE(dataloader, autoencoder, discriminator, generator, config, optimi
         'gen_loss': [], 
     }
     
-    """Gumbel-Softmax temperatur annealing"""
+    """Gumbel-Softmax temperature annealing"""
     tau = np.maximum(5 * np.exp(-0.025 * epoch), config["tau"])
     """Gaussian noise annealing"""
     ae_noise_radius = config["noise_radius"] * (config["noise_anneal"] ** epoch)
@@ -192,7 +192,7 @@ def train_Gumbel(dataloader, discriminator, generator, config, optimizer_D, opti
         'gen_loss': [], 
     }
     
-    """Gumbel-Softmax temperatur annealing"""
+    """Gumbel-Softmax temperature annealing"""
     tau = np.maximum(5 * np.exp(-0.025 * epoch), config["tau"])
     
     for (x_batch) in tqdm.tqdm(iter(dataloader), desc="inner loop"):
@@ -236,6 +236,66 @@ def train_Gumbel(dataloader, discriminator, generator, config, optimizer_D, opti
         gen_loss = criterion(gen_pred, smooth_label_ones)
         gen_loss.backward()
 
+        optimizer_G.step()
+        loss_.append(('gen_loss', gen_loss))
+
+        """accumulate losses"""
+        for x, y in loss_:
+            logs[x] = logs.get(x) + [y.item()]
+    
+    return logs
+#%%
+def train_WGAN_GP(dataloader, discriminator, generator, config, optimizer_D, optimizer_G, epoch, device):
+    logs = {
+        'disc_loss': [], 
+        'gen_loss': [], 
+    }
+    
+    """Gumbel-Softmax temperature annealing"""
+    tau = np.maximum(5 * np.exp(-0.025 * epoch), config["tau"])
+    
+    for (x_batch) in tqdm.tqdm(iter(dataloader), desc="inner loop"):
+        
+        x_batch = x_batch.to(device)
+        
+        loss_ = []
+        
+        """1. train discriminator"""
+        optimizer_D.zero_grad()
+        
+        # first train the discriminator only with real data
+        real_pred = discriminator(x_batch)
+        real_loss = - real_pred.mean(dim=0).view(1)
+        real_loss.backward()
+
+        # then train the discriminator only with fake data
+        noise = Variable(torch.FloatTensor(len(x_batch), config["embedding_dim"]).normal_()).to(device)
+        fake_features = generator(noise, temperature=tau).detach() # do not propagate to the generator
+        fake_pred = discriminator(fake_features)
+        fake_loss = fake_pred.mean(dim=0).view(1)
+        fake_loss.backward()
+        
+        # this is the magic from WGAN-GP
+        gradient_penalty = calculate_gradient_penalty(discriminator, config["penalty"], x_batch, fake_features, device)
+        gradient_penalty.backward()
+
+        disc_loss = real_loss + fake_loss + gradient_penalty
+        loss_.append(('disc_loss', disc_loss))
+        
+        optimizer_D.step()
+
+        disc_loss = real_loss + fake_loss
+        loss_.append(('disc_loss', disc_loss))
+
+        """2. train generator"""
+        optimizer_G.zero_grad()
+
+        noise = Variable(torch.FloatTensor(len(x_batch), config["embedding_dim"]).normal_()).to(device)
+        gen_features = generator(noise, temperature=tau)
+        gen_pred = discriminator(gen_features)
+        gen_loss = - gen_pred.mean(dim=0).view(1)
+        gen_loss.backward()
+        
         optimizer_G.step()
         loss_.append(('gen_loss', gen_loss))
 

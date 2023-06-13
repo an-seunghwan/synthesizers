@@ -62,14 +62,6 @@ def get_args(debug):
     parser.add_argument('--tau', default=0.666, type=float,
                         help='temperature in Gumbel-Softmax')
     
-    parser.add_argument('--noise_radius', default=0.2, type=float,
-                        help='Gaussian noise standard deviation for the latent code (autoencoder regularization).')
-    parser.add_argument('--noise_anneal', default=0.995, type=float,
-                        help='Anneal the noise radius by this value after every epoch.')
-    parser.add_argument('--penalty', default=0.1, type=float,
-                        help='WGAN-GP gradient penalty lambda.')
-    parser.add_argument('--clipping', default=0.01, type=float,
-                        help='weight-clipping of critic network.')
     parser.add_argument('--mc', default=True, type=bool,
                         help='Multi-Categorical setting')
     
