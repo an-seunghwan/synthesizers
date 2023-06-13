@@ -45,11 +45,11 @@ def get_args(debug):
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
-    parser.add_argument("--embedding_dim", default=64, type=int,
+    parser.add_argument("--embedding_dim", default=128, type=int,
                         help="the embedding dimension size")
-    parser.add_argument("--hidden_dims", default=[100, 100], type=arg_as_list,
+    parser.add_argument("--hidden_dims", default=[128], type=arg_as_list,
                         help="hidden dimensions for autoencoder")
-    parser.add_argument("--hidden_dims_disc", default=[128, 64], type=arg_as_list,
+    parser.add_argument("--hidden_dims_disc", default=[256, 128], type=arg_as_list,
                         help="hidden dimensions for discriminator")
     
     parser.add_argument('--epochs', default=1000, type=int,
@@ -63,8 +63,8 @@ def get_args(debug):
     parser.add_argument('--tau', default=0.666, type=float,
                         help='temperature in Gumbel-Softmax')
     
-    parser.add_argument('--mc', default=False, type=str2bool,
-                        help='Multi-Categorical setting')
+    # parser.add_argument('--mc', default=False, type=str2bool,
+    #                     help='Multi-Categorical setting')
     
     if debug:
         return parser.parse_args(args=[])
@@ -77,6 +77,11 @@ def main():
     torch.manual_seed(config["seed"])
     device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
     wandb.config.update(config)
+    
+    if config["tau"] is None:
+        config["mc"] = False
+    else:
+        config["mc"] = True
     #%%
     out = build_dataset(config)
     dataset = out[0]

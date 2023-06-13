@@ -25,7 +25,7 @@ except:
 run = wandb.init(
     project="HDistVAE", 
     entity="anseunghwan",
-    tags=['ARAE'],
+    tags=['MC-ARAE'],
 )
 #%%
 import ast
@@ -44,7 +44,7 @@ def get_args(debug):
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
-    parser.add_argument("--embedding_dim", default=64, type=int, # noise_dim
+    parser.add_argument("--embedding_dim", default=128, type=int, # noise_dim
                         help="the embedding dimension size")
     parser.add_argument("--hidden_dims", default=[100, 100], type=arg_as_list,
                         help="hidden dimensions for autoencoder")
@@ -57,7 +57,7 @@ def get_args(debug):
                         help='the number of epochs')
     parser.add_argument('--batch_size', default=1024, type=int,
                         help='batch size')
-    parser.add_argument('--lr', default=5e-4, type=float,
+    parser.add_argument('--lr', default=1e-5, type=float,
                         help='learning rate')
     parser.add_argument('--l2reg', default=0, type=float,
                         help='L2 regularization: weight decay')
@@ -90,13 +90,10 @@ def main():
     out = build_dataset(config)
     dataset = out[0]
     dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True)
+    OutputInfo_list = out[3]
 
     if config["dataset"] == "mnist": config["p"] = 784
     else: config["p"] = dataset.p
-    #%%
-    OutputInfo_list = None
-    if config["mc"]:
-        OutputInfo_list = out[3]
     #%%
     auto_model_module = importlib.import_module('module.model_auto')
     importlib.reload(auto_model_module)
@@ -129,17 +126,17 @@ def main():
     #%%
     optimizer_AE = torch.optim.Adam(
         autoencoder.parameters(), 
-        lr=config["lr"],
+        lr=config["lr"] * 50,
         weight_decay=config["l2reg"]
     )
-    optimizer_D = torch.optim.Adam(
+    optimizer_D = torch.optim.Adam( # critic
         discriminator.parameters(), 
-        lr=config["lr"] * 0.1,
+        lr=config["lr"],
         weight_decay=config["l2reg"]
     )
     optimizer_G = torch.optim.Adam(
         generator.parameters(), 
-        lr=config["lr"],
+        lr=config["lr"] * 5,
         weight_decay=config["l2reg"]
     )
     #%%
