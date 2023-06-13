@@ -119,8 +119,8 @@ def main():
         critic=True).to(device)
     generator.train(), discriminator.train()
     #%%
-    count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
-    num_params = count_parameters(discriminator) + count_parameters(generator)
+    count_parameters = lambda model: sum(p.numel() for p in model.parameters())
+    num_params = count_parameters(autoencoder) + count_parameters(discriminator) + count_parameters(generator)
     print("Number of Parameters:", num_params)
     wandb.log({'Number of Parameters': num_params})
     #%%

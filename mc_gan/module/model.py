@@ -84,7 +84,7 @@ class SingleOutput(nn.Module):
         else:
             self.model = nn.Sequential(nn.Linear(previous_layer_size, output_size), activation)
 
-    def forward(self, hidden, training=False, temperature=None):
+    def forward(self, hidden, training=True, temperature=None):
         return self.model(hidden)
 #%%
 class MultiCategorical(nn.Module):
@@ -168,7 +168,7 @@ class Generator(nn.Module):
         else:
             raise Exception("Invalid output size.")
 
-    def forward(self, noise, training=False, temperature=None):
+    def forward(self, noise, training=True, temperature=None):
         if self.hidden_layers is None:
             hidden = noise
         else:
