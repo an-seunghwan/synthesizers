@@ -46,7 +46,7 @@ def train_medGAN(dataloader, autoencoder, discriminator, generator, config, opti
         if config["mc"]:
             fake_features = autoencoder.decoder(fake_code, training=True, temperature=config["tau"], concat=True).detach()
         else:
-            fake_features = autoencoder.decoder(fake_code).detach()
+            fake_features = autoencoder.decoder(fake_code, training=True).detach()
         fake_pred = discriminator(fake_features)
         fake_loss = criterion(fake_pred, label_zeros)
         fake_loss.backward()
@@ -65,7 +65,7 @@ def train_medGAN(dataloader, autoencoder, discriminator, generator, config, opti
         if config["mc"]:
             gen_features = autoencoder.decoder(gen_code, training=True, temperature=config["tau"], concat=True)
         else:
-            gen_features = autoencoder.decoder(gen_code)
+            gen_features = autoencoder.decoder(gen_code, training=True)
         gen_pred = discriminator(gen_features)
 
         smooth_label_ones = Variable(torch.FloatTensor(len(x_batch)).uniform_(0.9, 1)).to(device)

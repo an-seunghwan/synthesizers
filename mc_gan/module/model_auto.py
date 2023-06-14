@@ -65,7 +65,7 @@ class CategoricalDecoder(nn.Module):
             self.output_layers.append(nn.Linear(previous_layer_size, info.dim))
             self.output_activations.append(CategoricalActivation())
 
-    def forward(self, input, training=True, temperature=None, concat=True):
+    def forward(self, input, training=True, temperature=0.666, concat=True):
         hidden = self.hidden_layers(input)
         """Multi-Categorical Setting"""
         outputs = []
@@ -122,7 +122,7 @@ class AutoEncoder(nn.Module):
         self.encoder = Encoder(
             config["p"], config["embedding_dim"], hidden_sizes=encoder_hidden_sizes)
 
-        if OutputInfo_list:
+        if self.OutputInfo_list is not None:
             self.decoder = CategoricalDecoder(
                 config["embedding_dim"], hidden_sizes=decoder_hidden_sizes, OutputInfo_list=OutputInfo_list)
         else:
@@ -131,9 +131,9 @@ class AutoEncoder(nn.Module):
 
     def forward(self, input, training=True, temperature=0.666, concat=True):
         emb = self.encoder(input)
-        if self.OutputInfo_list:
+        if self.OutputInfo_list is not None:
             recon = self.decoder(emb, training=training, temperature=temperature, concat=concat)
         else:
-            recon = self.decoder(emb)
+            recon = self.decoder(emb, training=training)
         return emb, recon
 #%%

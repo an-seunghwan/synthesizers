@@ -25,7 +25,7 @@ def train_function(trainloader, autoencoder, optimizer, config, device, epoch):
         if config["mc"]:
             _, xhat = autoencoder(x_batch, training=True, temperature=tau, concat=False)
         else:
-            _, xhat = autoencoder(x_batch)
+            _, xhat = autoencoder(x_batch, training=True)
         
         if config["mc"]:
             st = 0

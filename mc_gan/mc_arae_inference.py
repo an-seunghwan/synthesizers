@@ -34,7 +34,7 @@ except:
 run = wandb.init(
     project="HDistVAE", 
     entity="anseunghwan",
-    tags=['ARAE', 'inference'],
+    tags=['MC-ARAE', 'inference'],
 )
 #%%
 import argparse
@@ -43,7 +43,7 @@ def get_args(debug):
     
     parser.add_argument('--num', type=int, default=0, 
                         help='model number')
-    parser.add_argument('--dataset', type=str, default='survey', 
+    parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     parser.add_argument('--mc', default=True, type=bool,
                         help='Multi-Categorical setting')
@@ -115,7 +115,7 @@ def main():
         
     autoencoder.eval(), generator.eval()
     #%%
-    count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
+    count_parameters = lambda model: sum(p.numel() for p in model.parameters())
     num_params = count_parameters(generator) + count_parameters(autoencoder.decoder)
     print("Number of Parameters:", num_params)
     wandb.log({'Number of Parameters': num_params})

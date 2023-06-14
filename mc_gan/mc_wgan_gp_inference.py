@@ -34,7 +34,7 @@ except:
 run = wandb.init(
     project="HDistVAE", 
     entity="anseunghwan",
-    tags=['medGAN', 'inference'],
+    tags=['MC-WGAN-GP', 'inference'],
 )
 #%%
 import argparse
@@ -45,7 +45,7 @@ def get_args(debug):
                         help='model number')
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
-    parser.add_argument('--mc', default=True, type=str2bool,
+    parser.add_argument('--mc', default=True, type=bool,
                         help='Multi-Categorical setting')
     
     if debug:
@@ -58,8 +58,8 @@ def main():
     config = vars(get_args(debug=False)) # default configuration
     
     """model load"""
-    model_name = lambda x: f'mc_medGAN_{config["dataset"]}' if x else f'medGAN_{config["dataset"]}'
-    artifact = wandb.use_artifact(f'anseunghwan/HDistVAE/{model_name(config["mc"])}:v{config["num"]}', type='model')
+    model_name = f'mc_Gumbel_{config["dataset"]}'
+    artifact = wandb.use_artifact(f'anseunghwan/HDistVAE/{model_name}:v{config["num"]}', type='model')
     for key, item in artifact.metadata.items():
         config[key] = item
     model_dir = artifact.download()
@@ -68,59 +68,37 @@ def main():
     device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
     config["cuda"] = torch.cuda.is_available()
     wandb.config.update(config)
-    
-    model_module = importlib.import_module('module.model')
-    importlib.reload(model_module)
-
-    generator = getattr(model_module, 'medGANGenerator')(
-        config["embedding_dim"]).to(device)
-    
-    try:
-        generator.load_state_dict(
-            torch.load(
-                model_dir + '/' + [x for x in os.listdir(model_dir) if x.endswith('pth')][0]))
-    except:
-        generator.load_state_dict(
-            torch.load(
-                model_dir + '/' + [x for x in os.listdir(model_dir) if x.endswith('pth')][0], 
-                map_location=torch.device('cpu')))
-    generator.eval()
     #%%
     out = build_dataset(config)
     dataset = out[0]
+    OutputInfo_list = out[3]
 
     if config["dataset"] == "mnist": config["p"] = 784
     else: config["p"] = dataset.p
-    
-    OutputInfo_list = None
-    if config["mc"]:
-        OutputInfo_list = out[3]
     #%%
-    auto_model_module = importlib.import_module('module.model_auto')
-    importlib.reload(auto_model_module)
-    auto_model_name = lambda x: f'dec_mc_medGAN_{config["dataset"]}' if x else f'dec_medGAN_{config["dataset"]}'
-    artifact = wandb.use_artifact(f'anseunghwan/HDistVAE/{auto_model_name(config["mc"])}:v{config["seed"]}', type='model')
-    model_dir = artifact.download()
-    
-    autoencoder = getattr(auto_model_module, 'AutoEncoder')(
-        config, 
-        config["hidden_dims"], 
-        list(reversed(config["hidden_dims"])), 
-        OutputInfo_list=OutputInfo_list).to(device)
-    
+    model_module = importlib.import_module('module.model')
+    importlib.reload(model_module)
+
+    generator = getattr(model_module, 'Generator')(
+        config["embedding_dim"], 
+        [x.dim for x in OutputInfo_list], 
+        hidden_sizes=config["hidden_dims_gen"],
+        bn_decay=0.1).to(device)
+    #%%
     try:
-        autoencoder.decoder.load_state_dict(
+        generator.load_state_dict(
             torch.load(
-                model_dir + '/' + [x for x in os.listdir(model_dir) if x.endswith('pth')][0]))
+                model_dir + '/' + [x for x in os.listdir(model_dir) if x.endswith('pth') and x.startswith('generator')][0]))
     except:
-        autoencoder.decoder.load_state_dict(
+        generator.load_state_dict(
             torch.load(
-                model_dir + '/' + [x for x in os.listdir(model_dir) if x.endswith('pth')][0], 
+                model_dir + '/' + [x for x in os.listdir(model_dir) if x.endswith('pth') and x.startswith('generator')][0], 
                 map_location=torch.device('cpu')))
-    autoencoder.eval()
+        
+    generator.eval()
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters())
-    num_params = count_parameters(generator) + count_parameters(autoencoder.decoder)
+    num_params = count_parameters(generator)
     print("Number of Parameters:", num_params)
     wandb.log({'Number of Parameters': num_params})
     #%%
@@ -141,13 +119,13 @@ def main():
     with torch.no_grad():
         for _ in range(steps):
             z = torch.randn(config["batch_size"], config["embedding_dim"]).to(device) 
-            data.append(autoencoder.decoder(generator(z), training=False))
+            data.append(generator(z, training=False))
     data = torch.cat(data, dim=0)
     data = data[:n, :]
     
     syndata = postprocess(data, OutputInfo_list, colnames, discrete_dicts, discrete_dicts_reverse)
     #%%
-    metrics = evaluate(syndata, train, test, config, model_name(config["mc"]))
+    metrics = evaluate(syndata, train, test, config, model_name)
     
     print(f"KL: {metrics.KL:.3f}")
     wandb.log({'KL': metrics.KL})
