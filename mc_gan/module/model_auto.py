@@ -44,7 +44,7 @@ class Decoder(nn.Module):
         ])
         self.hidden_layers = nn.Sequential(*hidden_layers)
 
-    def forward(self, input):
+    def forward(self, input, training=True):
         return self.hidden_layers(input)
 #%%
 class CategoricalDecoder(nn.Module):
