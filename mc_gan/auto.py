@@ -76,7 +76,7 @@ def main():
     device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
     wandb.config.update(config)
     
-    if config["tau"] is None:
+    if config["tau"] == 0:
         config["mc"] = False
     else:
         config["mc"] = True
