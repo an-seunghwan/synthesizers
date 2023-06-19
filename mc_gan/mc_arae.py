@@ -164,7 +164,7 @@ def main():
         metadata=config) # description=""
     artifact.add_file(f'./assets/model/generator_{model_name}.pth')
     artifact.add_file(f'./assets/model/autoencoder_{model_name}.pth')
-    artifact.add_file('./arae.py')
+    artifact.add_file('./mc_arae.py')
     artifact.add_file('./module/model.py')
     #%%
     wandb.log_artifact(artifact)
