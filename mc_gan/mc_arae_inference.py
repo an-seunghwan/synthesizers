@@ -45,8 +45,10 @@ def get_args(debug):
                         help='model number')
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
-    parser.add_argument('--mc', default=True, type=bool,
-                        help='Multi-Categorical setting')
+    parser.add_argument('--tau', default=0.666, type=float,
+                        help='temperature in Gumbel-Softmax')
+    # parser.add_argument('--mc', default=True, type=str2bool,
+    #                     help='Multi-Categorical setting')
     
     if debug:
         return parser.parse_args(args=[])
@@ -71,13 +73,10 @@ def main():
     #%%
     out = build_dataset(config)
     dataset = out[0]
+    OutputInfo_list = out[3]
 
     if config["dataset"] == "mnist": config["p"] = 784
     else: config["p"] = dataset.p
-    
-    OutputInfo_list = None
-    if config["mc"]:
-        OutputInfo_list = out[3]
     #%%
     auto_model_module = importlib.import_module('module.model_auto')
     importlib.reload(auto_model_module)

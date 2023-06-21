@@ -45,8 +45,10 @@ def get_args(debug):
                         help='model number')
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
-    parser.add_argument('--mc', default=True, type=str2bool,
-                        help='Multi-Categorical setting')
+    parser.add_argument('--tau', default=0.666, type=float,
+                        help='temperature in Gumbel-Softmax')
+    # parser.add_argument('--mc', default=True, type=str2bool,
+    #                     help='Multi-Categorical setting')
     
     if debug:
         return parser.parse_args(args=[])
@@ -56,6 +58,11 @@ def get_args(debug):
 def main():
     #%%
     config = vars(get_args(debug=False)) # default configuration
+    
+    if config["tau"] == 0:
+        config["mc"] = False
+    else:
+        config["mc"] = True
     
     """model load"""
     model_name = lambda x: f'mc_medGAN_{config["dataset"]}' if x else f'medGAN_{config["dataset"]}'
