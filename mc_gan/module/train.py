@@ -370,3 +370,111 @@ def train_WGAN_GP_A(dataloader, discriminator, generator, config, optimizer_D, o
     
     return logs
 #%%
+def train_DAAE(
+    dataloader, autoencoder, discriminator_x, discriminator_z, generator, 
+    config, optimizer_enc, optimizer_dec, optimizer_Dx, optimizer_Dz, optimizer_G, epoch, device):
+    logs = {
+        'disc_x_loss': [], 
+        'disc_z_loss': [], 
+        'ae_loss': [], 
+        'gen_loss': [], 
+    }
+    
+    for (x_batch) in tqdm.tqdm(iter(dataloader), desc="inner loop"):
+        
+        x_batch = x_batch.to(device)
+        
+        loss_ = []
+        
+        """1. train critic x (outer)"""
+        optimizer_Dx.zero_grad()
+        
+        real_pred = discriminator_x(x_batch)
+        real_loss = - real_pred.mean(dim=0).view(1)
+        real_loss.backward()
+        
+        noise = Variable(torch.FloatTensor(len(x_batch), config["embedding_dim"]).normal_()).to(device)
+        fake_code1 = generator(noise).detach() # do not propagate to the generator
+        fake_batch1 = autoencoder.decoder(fake_code1).detach()
+        fake_code1 = autoencoder.encoder(x_batch).detach()
+        fake_batch2 = autoencoder.decoder(fake_code1).detach()
+        fake_pred = discriminator_x(fake_batch1) + discriminator_x(fake_batch2)
+        fake_loss = fake_pred.mean(dim=0).view(1) * 0.5
+        fake_loss.backward()
+        
+        # this is the magic from WGAN-GP
+        gradient_penalty1 = calculate_gradient_penalty(discriminator_x, config["penalty"], x_batch, fake_batch1, device)
+        gradient_penalty1.backward()
+        gradient_penalty2 = calculate_gradient_penalty(discriminator_x, config["penalty"], x_batch, fake_batch2, device)
+        gradient_penalty2.backward()
+        
+        disc_x_loss = real_loss + fake_loss + gradient_penalty1 + gradient_penalty2
+        loss_.append(('disc_x_loss', disc_x_loss))
+        
+        optimizer_Dx.step()
+        
+        """2. train critic z (inner)"""
+        optimizer_Dz.zero_grad()
+        
+        real_code = autoencoder.encoder(x_batch).detach()
+        real_pred = discriminator_z(real_code)
+        real_loss = - real_pred.mean(dim=0).view(1)
+        real_loss.backward()
+        
+        noise = Variable(torch.FloatTensor(len(x_batch), config["embedding_dim"]).normal_()).to(device)
+        fake_code = generator(noise).detach() 
+        fake_pred = discriminator_z(fake_code)
+        fake_loss = fake_pred.mean(dim=0).view(1)
+        fake_loss.backward()
+        
+        # this is the magic from WGAN-GP
+        gradient_penalty = calculate_gradient_penalty(discriminator_z, config["penalty"], real_code, fake_code, device)
+        gradient_penalty.backward()
+        
+        disc_z_loss = real_loss + fake_loss + gradient_penalty
+        loss_.append(('disc_z_loss', disc_z_loss))
+        
+        optimizer_Dz.step()
+        
+        """3. train autoencoder(encoder and decoder)"""
+        optimizer_enc.zero_grad()
+        optimizer_dec.zero_grad()
+
+        _, xhat = autoencoder(x_batch)
+        recon = F.binary_cross_entropy(xhat, x_batch, reduction='none').sum(axis=1).mean()
+        recon.backward(retain_graph=True)
+        
+        noise = Variable(torch.FloatTensor(len(x_batch), config["embedding_dim"]).normal_()).to(device)
+        fake_code1 = generator(noise).detach() 
+        fake_batch1 = autoencoder.decoder(fake_code1)
+        fake_code1 = autoencoder.encoder(x_batch).detach()
+        fake_batch2 = autoencoder.decoder(fake_code1)
+        fake_pred = discriminator_x(fake_batch1) + discriminator_x(fake_batch2)
+        fake_loss = - fake_pred.mean(dim=0).view(1)
+        fake_loss.backward()
+        
+        ae_loss = recon + fake_loss
+        loss_.append(('ae_loss', ae_loss))
+        
+        optimizer_enc.step()
+        optimizer_dec.step()
+        
+        """4. train generator"""
+        optimizer_G.zero_grad()
+        
+        noise = Variable(torch.FloatTensor(len(x_batch), config["embedding_dim"]).normal_()).to(device)
+        fake_code = generator(noise)
+        fake_pred = discriminator_z(fake_code)
+        fake_loss = - fake_pred.mean(dim=0).view(1)
+        fake_loss.backward()
+        
+        loss_.append(('gen_loss', fake_loss))
+        
+        optimizer_G.step()
+
+        """accumulate losses"""
+        for x, y in loss_:
+            logs[x] = logs.get(x) + [y.item()]
+    
+    return logs
+#%%
