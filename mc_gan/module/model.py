@@ -79,10 +79,17 @@ class medGANGenerator(nn.Module):
 class SingleOutput(nn.Module):
     def __init__(self, previous_layer_size, output_size, activation=None):
         super(SingleOutput, self).__init__()
+        activations = {
+            'relu': nn.ReLU(),
+            'sigmoid': nn.Sigmoid(),
+            'tanh': nn.Tanh(),
+        }
         if activation is None:
             self.model = nn.Linear(previous_layer_size, output_size)
         else:
-            self.model = nn.Sequential(nn.Linear(previous_layer_size, output_size), activation)
+            self.model = nn.Sequential(
+                nn.Linear(previous_layer_size, output_size), 
+                activations.get(activation))
 
     def forward(self, hidden, training=True, temperature=None):
         return self.model(hidden)
@@ -144,7 +151,7 @@ class CategoricalActivation(nn.Module):
             return OneHotCategorical(logits=logits).sample()
 #%%
 class Generator(nn.Module):
-    def __init__(self, noise_dim, output_dim, hidden_sizes=[], bn_decay=0.01):
+    def __init__(self, noise_dim, output_dim, hidden_sizes=[], bn_decay=0.01, activation=None):
         super(Generator, self).__init__()
 
         previous_layer_size = noise_dim
@@ -162,7 +169,7 @@ class Generator(nn.Module):
             self.hidden_layers = None
 
         if type(output_dim) is int:
-            self.output = SingleOutput(previous_layer_size, output_dim)
+            self.output = SingleOutput(previous_layer_size, output_dim, activation=activation)
         elif type(output_dim) is list:
             self.output = MultiCategorical(previous_layer_size, output_dim)
         else:
