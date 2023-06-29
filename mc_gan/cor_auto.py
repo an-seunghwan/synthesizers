@@ -9,7 +9,8 @@ import importlib
 import torch
 from torch.utils.data import DataLoader
 
-from module.datasets import MyDataset, build_dataset
+from module.utils import str2bool
+from module.datasets import build_dataset
 #%%
 import sys
 import subprocess
@@ -25,7 +26,7 @@ except:
 run = wandb.init(
     project="HDistVAE", 
     entity="anseunghwan",
-    tags=['WGAN-GP-A'],
+    tags=['AE-corGAN'],
 )
 #%%
 import ast
@@ -44,31 +45,22 @@ def get_args(debug):
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
-    parser.add_argument("--embedding_dim", default=128, type=int, # noise_dim
+    parser.add_argument("--embedding_dim", default=128, type=int,
                         help="the embedding dimension size")
-    parser.add_argument("--hidden_dims_disc", default=[256, 128], type=arg_as_list,
-                        help="hidden dimensions for discriminator")
-    parser.add_argument("--hidden_dims_gen", default=[256, 128], type=arg_as_list,
-                        help="hidden dimensions for generator")
+    parser.add_argument("--hidden_dims", default=[128], type=arg_as_list, # single layer
+                        help="hidden dimensions for autoencoder")
     
-    parser.add_argument('--epochs', default=1000, type=int,
+    parser.add_argument('--epochs', default=100, type=int,
                         help='the number of epochs')
-    parser.add_argument('--batch_size', default=1024, type=int,
+    parser.add_argument('--batch_size', default=128, type=int,
                         help='batch size')
     parser.add_argument('--lr', default=0.001, type=float,
                         help='learning rate')
     parser.add_argument('--l2reg', default=0.001, type=float,
                         help='L2 regularization: weight decay')
-    parser.add_argument('--tau', default=0.666, type=float,
-                        help='temperature in Gumbel-Softmax')
-    
-    parser.add_argument('--penalty', default=0.1, type=float,
-                        help='WGAN-GP gradient penalty lambda.')
-    parser.add_argument('--lambda', default=0.1, type=float,
-                        help='alignment loss lambda.')
-    parser.add_argument('--mc', default=True, type=bool,
+    parser.add_argument('--mc', default=False, type=str2bool,
                         help='Multi-Categorical setting')
-    
+  
     if debug:
         return parser.parse_args(args=[])
     else:    
@@ -83,51 +75,42 @@ def main():
     #%%
     out = build_dataset(config)
     dataset = out[0]
-    dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True)
-
+    trainloader = DataLoader(
+        dataset=dataset,
+        batch_size=config["batch_size"], 
+        shuffle=True,
+        drop_last=False)
+    
     if config["dataset"] == "mnist": config["p"] = 784
     else: config["p"] = dataset.p
     #%%
-    model_module = importlib.import_module('module.model')
-    importlib.reload(model_module)
-
-    generator = getattr(model_module, 'Generator')(
-        config["embedding_dim"], 
-        config["p"], 
-        hidden_sizes=config["hidden_dims_gen"],
-        bn_decay=0.1,
-        activation='sigmoid').to(device)
-    discriminator = getattr(model_module, 'Discriminator')(
-        config["p"], 
-        hidden_sizes=config["hidden_dims_disc"],
-        bn_decay=0,
-        critic=True).to(device)
-    generator.train(mode=True), discriminator.train(mode=True)
+    auto_model_module = importlib.import_module('module.model_cor_auto')
+    importlib.reload(auto_model_module)
+    autoencoder = getattr(auto_model_module, 'AutoEncoder')(
+        config, 
+        config["hidden_dims"], 
+        list(reversed(config["hidden_dims"])),).to(device)
+    autoencoder.train()
     #%%
-    count_parameters = lambda model: sum(p.numel() for p in model.parameters())
-    num_params = count_parameters(discriminator) + count_parameters(generator)
+    count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
+    num_params = count_parameters(autoencoder)
     print("Number of Parameters:", num_params)
     wandb.log({'Number of Parameters': num_params})
     #%%
-    optimizer_D = torch.optim.Adam( 
-        discriminator.parameters(), 
-        lr=config["lr"],
-        weight_decay=config["l2reg"]
-    )
-    optimizer_G = torch.optim.Adam(
-        generator.parameters(), 
+    optimizer = torch.optim.Adam(
+        autoencoder.parameters(), 
         lr=config["lr"],
         weight_decay=config["l2reg"]
     )
     #%%
-    train_module = importlib.import_module('module.train')
+    train_module = importlib.import_module('module.train_cor_auto')
     importlib.reload(train_module)
+    train_function = getattr(train_module, 'train_function') # without MNIST option
 
     for epoch in range(config["epochs"]):
-        logs = train_module.train_WGAN_GP_A(
-            dataloader, discriminator, generator, config, optimizer_D, optimizer_G, config["lambda"], device)
+        logs = train_function(trainloader, autoencoder, optimizer, device)
         
-        print_input = "[epoch {:04d}]".format(epoch + 1)
+        print_input = "[epoch {:03d}]".format(epoch + 1)
         print_input += ''.join([', {}: {:.4f}'.format(x, np.mean(y)) for x, y in logs.items()])
         print(print_input)
         
@@ -135,15 +118,15 @@ def main():
         wandb.log({x : np.mean(y) for x, y in logs.items()})
     #%%
     """model save"""
-    model_name = f'WGAN_GP_A_{config["dataset"]}'
-    torch.save(generator.state_dict(), f'./assets/model/generator_{model_name}.pth')
+    model_name = f'dec_corGAN_{config["dataset"]}'
+    torch.save(autoencoder.decoder.state_dict(), f'./assets/model/{model_name}.pth')
     artifact = wandb.Artifact(
         model_name, 
         type='model',
         metadata=config) # description=""
-    artifact.add_file(f'./assets/model/generator_{model_name}.pth')
-    artifact.add_file('./wgan_gp_a.py')
-    artifact.add_file('./module/model.py')
+    artifact.add_file(f'./assets/model/{model_name}.pth')
+    artifact.add_file('./cor_auto.py')
+    artifact.add_file('./module/model_cor_auto.py')
     #%%
     wandb.log_artifact(artifact)
     wandb.config.update(config, allow_val_change=True)

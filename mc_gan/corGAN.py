@@ -9,6 +9,7 @@ import importlib
 import torch
 from torch.utils.data import DataLoader
 
+from module.utils import str2bool
 from module.datasets import MyDataset, build_dataset
 #%%
 import sys
@@ -25,7 +26,7 @@ except:
 run = wandb.init(
     project="HDistVAE", 
     entity="anseunghwan",
-    tags=['WGAN-GP-A'],
+    tags=['corGAN'],
 )
 #%%
 import ast
@@ -44,12 +45,12 @@ def get_args(debug):
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
-    parser.add_argument("--embedding_dim", default=128, type=int, # noise_dim
+    parser.add_argument("--embedding_dim", default=128, type=int,
                         help="the embedding dimension size")
+    parser.add_argument("--hidden_dims", default=[128], type=arg_as_list,
+                        help="hidden dimensions for autoencoder")
     parser.add_argument("--hidden_dims_disc", default=[256, 128], type=arg_as_list,
                         help="hidden dimensions for discriminator")
-    parser.add_argument("--hidden_dims_gen", default=[256, 128], type=arg_as_list,
-                        help="hidden dimensions for generator")
     
     parser.add_argument('--epochs', default=1000, type=int,
                         help='the number of epochs')
@@ -59,14 +60,7 @@ def get_args(debug):
                         help='learning rate')
     parser.add_argument('--l2reg', default=0.001, type=float,
                         help='L2 regularization: weight decay')
-    parser.add_argument('--tau', default=0.666, type=float,
-                        help='temperature in Gumbel-Softmax')
-    
-    parser.add_argument('--penalty', default=0.1, type=float,
-                        help='WGAN-GP gradient penalty lambda.')
-    parser.add_argument('--lambda', default=0.1, type=float,
-                        help='alignment loss lambda.')
-    parser.add_argument('--mc', default=True, type=bool,
+    parser.add_argument('--mc', default=False, type=str2bool,
                         help='Multi-Categorical setting')
     
     if debug:
@@ -88,34 +82,53 @@ def main():
     if config["dataset"] == "mnist": config["p"] = 784
     else: config["p"] = dataset.p
     #%%
+    auto_model_module = importlib.import_module('module.model_cor_auto')
+    importlib.reload(auto_model_module)
+    auto_model_name = f'dec_corGAN_{config["dataset"]}'
+    artifact = wandb.use_artifact(f'anseunghwan/HDistVAE/{auto_model_name}:v{config["seed"]}', type='model')
+    model_dir = artifact.download()
+    
+    OutputInfo_list = None
+    if config["mc"]:
+        OutputInfo_list = out[3]
+    autoencoder = getattr(auto_model_module, 'AutoEncoder')(
+        config, 
+        config["hidden_dims"], 
+        list(reversed(config["hidden_dims"])),).to(device)
+    
+    try:
+        model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
+        autoencoder.decoder.load_state_dict(
+            torch.load(
+                model_dir + '/' + model_name))
+    except:
+        model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
+        autoencoder.decoder.load_state_dict(
+            torch.load(
+                model_dir + '/' + model_name, map_location=torch.device('cpu')))
+    autoencoder.eval()
+    #%%
     model_module = importlib.import_module('module.model')
     importlib.reload(model_module)
 
-    generator = getattr(model_module, 'Generator')(
-        config["embedding_dim"], 
-        config["p"], 
-        hidden_sizes=config["hidden_dims_gen"],
-        bn_decay=0.1,
-        activation='sigmoid').to(device)
-    discriminator = getattr(model_module, 'Discriminator')(
-        config["p"], 
-        hidden_sizes=config["hidden_dims_disc"],
-        bn_decay=0,
-        critic=True).to(device)
-    generator.train(mode=True), discriminator.train(mode=True)
+    discriminator = getattr(model_module, 'medGANDiscriminator')(
+        config["p"], hidden_sizes=config["hidden_dims_disc"]).to(device)
+    generator = getattr(model_module, 'medGANGenerator')(
+        config["embedding_dim"]).to(device)
+    discriminator.train(), generator.train()
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters())
-    num_params = count_parameters(discriminator) + count_parameters(generator)
+    num_params = count_parameters(autoencoder.decoder) + count_parameters(discriminator) + count_parameters(generator)
     print("Number of Parameters:", num_params)
     wandb.log({'Number of Parameters': num_params})
     #%%
-    optimizer_D = torch.optim.Adam( 
+    optimizer_D = torch.optim.Adam(
         discriminator.parameters(), 
         lr=config["lr"],
         weight_decay=config["l2reg"]
     )
     optimizer_G = torch.optim.Adam(
-        generator.parameters(), 
+        list(generator.parameters()) + list(autoencoder.decoder.parameters()), 
         lr=config["lr"],
         weight_decay=config["l2reg"]
     )
@@ -124,8 +137,7 @@ def main():
     importlib.reload(train_module)
 
     for epoch in range(config["epochs"]):
-        logs = train_module.train_WGAN_GP_A(
-            dataloader, discriminator, generator, config, optimizer_D, optimizer_G, config["lambda"], device)
+        logs = train_module.train_medGAN(dataloader, autoencoder, discriminator, generator, config, optimizer_D, optimizer_G, device)
         
         print_input = "[epoch {:04d}]".format(epoch + 1)
         print_input += ''.join([', {}: {:.4f}'.format(x, np.mean(y)) for x, y in logs.items()])
@@ -135,14 +147,14 @@ def main():
         wandb.log({x : np.mean(y) for x, y in logs.items()})
     #%%
     """model save"""
-    model_name = f'WGAN_GP_A_{config["dataset"]}'
-    torch.save(generator.state_dict(), f'./assets/model/generator_{model_name}.pth')
+    model_name = f'corGAN_{config["dataset"]}'
+    torch.save(generator.state_dict(), f'./assets/model/{model_name}.pth')
     artifact = wandb.Artifact(
         model_name, 
         type='model',
         metadata=config) # description=""
-    artifact.add_file(f'./assets/model/generator_{model_name}.pth')
-    artifact.add_file('./wgan_gp_a.py')
+    artifact.add_file(f'./assets/model/{model_name}.pth')
+    artifact.add_file('./medgan.py')
     artifact.add_file('./module/model.py')
     #%%
     wandb.log_artifact(artifact)

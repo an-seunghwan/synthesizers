@@ -356,10 +356,9 @@ def train_WGAN_GP_A(dataloader, discriminator, generator, config, optimizer_D, o
         std = x_batch.t().std(dim=1, keepdims=True)
         std = torch.where(std == 0, 1e-6, std)
         cov = torch.cov(x_batch.t())
-        corr1 = (cov / (std @ std.t()))
-        corr2 = torch.corrcoef(gen_features.t())
-        lam * (corr1 - corr2).abs().mean()
-        gen_loss += lam
+        corr1 = (cov / (std @ std.t())) # true
+        corr2 = torch.corrcoef(gen_features.t()) # synthetic
+        gen_loss += lam * (corr1 - corr2).abs().mean()
         gen_loss.backward()
         
         optimizer_G.step()
