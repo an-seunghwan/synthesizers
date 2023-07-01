@@ -88,9 +88,6 @@ def main():
     artifact = wandb.use_artifact(f'anseunghwan/HDistVAE/{auto_model_name}:v{config["seed"]}', type='model')
     model_dir = artifact.download()
     
-    OutputInfo_list = None
-    if config["mc"]:
-        OutputInfo_list = out[3]
     autoencoder = getattr(auto_model_module, 'AutoEncoder')(
         config, 
         config["hidden_dims"], 

@@ -71,7 +71,7 @@ def get_args(debug):
 #%%
 def main():
     #%%
-    config = vars(get_args(debug=True)) # default configuration
+    config = vars(get_args(debug=False)) # default configuration
     torch.manual_seed(config["seed"])
     device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
     wandb.config.update(config)
@@ -152,10 +152,10 @@ def main():
         print(print_input)
         
         """update log"""
-        # wandb.log({x : np.mean(y) for x, y in logs.items()})
+        wandb.log({x : np.mean(y) for x, y in logs.items()})
     #%%
     """model save"""
-    model_name = f'mc_ARAE_{config["dataset"]}'
+    model_name = f'DAAE_{config["dataset"]}'
     torch.save(generator.state_dict(), f'./assets/model/generator_{model_name}.pth')
     torch.save(autoencoder.state_dict(), f'./assets/model/autoencoder_{model_name}.pth')
     artifact = wandb.Artifact(
@@ -164,7 +164,7 @@ def main():
         metadata=config) # description=""
     artifact.add_file(f'./assets/model/generator_{model_name}.pth')
     artifact.add_file(f'./assets/model/autoencoder_{model_name}.pth')
-    artifact.add_file('./mc_arae.py')
+    artifact.add_file('./daae.py')
     artifact.add_file('./module/model.py')
     #%%
     wandb.log_artifact(artifact)
