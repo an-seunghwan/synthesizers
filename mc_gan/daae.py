@@ -57,7 +57,7 @@ def get_args(debug):
                         help='the number of epochs')
     parser.add_argument('--batch_size', default=32, type=int,
                         help='batch size')
-    parser.add_argument('--lr', default=0.001, type=float,
+    parser.add_argument('--lr', default=0.0001, type=float,
                         help='learning rate')
     parser.add_argument('--penalty', default=0.1, type=float,
                         help='WGAN-GP gradient penalty lambda.')
