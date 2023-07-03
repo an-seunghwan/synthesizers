@@ -101,8 +101,7 @@ def main():
     autoencoder = getattr(auto_model_module, 'AutoEncoder')(
         config, 
         config["hidden_dims"], 
-        list(reversed(config["hidden_dims"])), 
-        OutputInfo_list=OutputInfo_list).to(device)
+        list(reversed(config["hidden_dims"]))).to(device)
     
     try:
         autoencoder.decoder.load_state_dict(
@@ -143,7 +142,7 @@ def main():
     
     syndata = postprocess(data, OutputInfo_list, colnames, discrete_dicts, discrete_dicts_reverse)
     #%%
-    metrics = evaluate(syndata, train, test, config, model_name(config["mc"]))
+    metrics = evaluate(syndata, train, test, config, model_name)
     
     print(f"KL: {metrics.KL:.3f}")
     wandb.log({'KL': metrics.KL})
