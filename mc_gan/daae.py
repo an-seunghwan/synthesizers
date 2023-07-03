@@ -61,8 +61,8 @@ def get_args(debug):
                         help='learning rate')
     parser.add_argument('--penalty', default=0.1, type=float,
                         help='WGAN-GP gradient penalty lambda.')
-    parser.add_argument('--mc', default=False, type=bool,
-                        help='Multi-Categorical setting')
+    # parser.add_argument('--mc', default=False, type=bool,
+    #                     help='Multi-Categorical setting')
     
     if debug:
         return parser.parse_args(args=[])

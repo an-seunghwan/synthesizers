@@ -66,8 +66,8 @@ def get_args(debug):
                         help='WGAN-GP gradient penalty lambda.')
     parser.add_argument('--lambda', default=0.1, type=float,
                         help='alignment loss lambda.')
-    parser.add_argument('--mc', default=True, type=bool,
-                        help='Multi-Categorical setting')
+    # parser.add_argument('--mc', default=False, type=bool,
+    #                     help='Multi-Categorical setting')
     
     if debug:
         return parser.parse_args(args=[])
