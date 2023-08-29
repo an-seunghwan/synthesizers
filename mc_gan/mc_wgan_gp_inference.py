@@ -32,9 +32,9 @@ except:
     import wandb
 
 run = wandb.init(
-    project="HDistVAE", 
+    project="Synthetic(High)", 
     entity="anseunghwan",
-    tags=['MC-WGAN-GP', 'inference'],
+    tags=['inference'],
 )
 #%%
 import argparse
@@ -43,12 +43,11 @@ def get_args(debug):
     
     parser.add_argument('--num', type=int, default=0, 
                         help='model number')
+    parser.add_argument('--model', type=str, default='MC-WGAN-GP')
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     parser.add_argument('--tau', default=0.666, type=float,
                         help='temperature in Gumbel-Softmax')
-    # parser.add_argument('--mc', default=True, type=str2bool,
-    #                     help='Multi-Categorical setting')
     
     if debug:
         return parser.parse_args(args=[])
@@ -101,8 +100,8 @@ def main():
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters())
     num_params = count_parameters(generator)
-    print("Number of Parameters:", num_params)
-    wandb.log({'Number of Parameters': num_params})
+    print(f"Number of Parameters: {num_params / 1000:.1f}K")
+    wandb.log({'Number of Parameters': num_params / 1000})
     #%%
     train = out[1]
     test = out[2]
@@ -153,23 +152,4 @@ def main():
 #%%
 if __name__ == '__main__':
     main()
-#%%
-# computational issue -> sampling 5000
-# tmp1 = syndata.astype(int).to_numpy()[:5000, :]
-# tmp2 = train.astype(int).to_numpy()[:5000, :] # train
-
-# hamming = np.zeros((tmp1.shape[0], tmp2.shape[0]))
-# for i in tqdm.tqdm(range(len(tmp1))):
-#     hamming[i, :] = (tmp2 - tmp1[[i]] != 0).mean(axis=1)
-# #%%
-# fig = plt.figure(figsize=(6, 4))
-# plt.hist(hamming.flatten(), density=True, bins=20)
-# plt.axvline(np.quantile(hamming.flatten(), 0.05), color='red')
-# plt.xlabel('Hamming Dist', fontsize=13)
-# plt.ylabel('density', fontsize=13)
-# plt.savefig('./assets/census_hamming.png')
-# # plt.show()
-# plt.close()
-# wandb.log({'Hamming Distance': wandb.Image(fig)})
-# wandb.log({'Hamming': np.quantile(hamming.flatten(), 0.05)})
 #%%

@@ -43,7 +43,7 @@ def get_args(debug):
     parser.add_argument('--seed', type=int, default=0, 
                         help='seed for repeatable results')
     parser.add_argument('--model', type=str, default='medGAN')
-    parser.add_argument('--dataset', type=str, default='survey', 
+    parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
     parser.add_argument("--embedding_dim", default=128, type=int,
