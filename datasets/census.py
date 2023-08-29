@@ -14,9 +14,9 @@ def get_args(debug):
     
     parser.add_argument('--seed', type=int, default=42, 
                         help='seed for repeatable results')
-    parser.add_argument('--train_length', type=int, default=60000, 
+    parser.add_argument('--train_length', type=int, default=30000, 
                         help='length of train dataset')
-    parser.add_argument('--test_length', type=int, default=10000, 
+    parser.add_argument('--test_length', type=int, default=5000, 
                         help='length of test dataset')
     
     if debug:

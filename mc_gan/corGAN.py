@@ -23,9 +23,12 @@ except:
     subprocess.run(["wandb", "login"], input=key[0], encoding='utf-8')
     import wandb
 
+project = "Synthetic(High)"
+entity = "anseunghwan"
+
 run = wandb.init(
-    project="Synthetic(High)", 
-    entity="anseunghwan",
+    project=project, 
+    entity=entity,
     # tags=[''],
 )
 #%%
@@ -86,7 +89,7 @@ def main():
     auto_model_module = importlib.import_module('module.model_cor_auto')
     importlib.reload(auto_model_module)
     auto_model_name = f'dec_corGAN_{config["dataset"]}'
-    artifact = wandb.use_artifact(f'anseunghwan/HDistVAE/{auto_model_name}:v{config["seed"]}', type='model')
+    artifact = wandb.use_artifact(f'{entity}/{project}/{auto_model_name}:v{config["seed"]}', type='model')
     model_dir = artifact.download()
     
     autoencoder = getattr(auto_model_module, 'AutoEncoder')(

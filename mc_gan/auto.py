@@ -23,9 +23,12 @@ except:
     subprocess.run(["wandb", "login"], input=key[0], encoding='utf-8')
     import wandb
 
+project = "Synthetic(High)"
+entity = "anseunghwan"
+
 run = wandb.init(
-    project="Synthetic(High)", 
-    entity="anseunghwan",
+    project=project, 
+    entity=entity,
     # tags=[''],
 )
 #%%
@@ -42,7 +45,7 @@ def get_args(debug):
     
     parser.add_argument('--seed', type=int, default=0, 
                         help='seed for repeatable results')
-    parser.add_argument('--model', type=str, default='auto')
+    parser.add_argument('--model', type=str, default='medGAN_auto')
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     

@@ -22,9 +22,12 @@ except:
     subprocess.run(["wandb", "login"], input=key[0], encoding='utf-8')
     import wandb
 
+project = "Synthetic(High)"
+entity = "anseunghwan"
+
 run = wandb.init(
-    project="Synthetic(High)", 
-    entity="anseunghwan",
+    project=project, 
+    entity=entity,
     # tags=[''],
 )
 #%%

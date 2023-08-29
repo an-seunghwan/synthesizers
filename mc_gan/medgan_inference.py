@@ -31,9 +31,12 @@ except:
     subprocess.run(["wandb", "login"], input=key[0], encoding='utf-8')
     import wandb
 
+project = "Synthetic(High)"
+entity = "anseunghwan"
+
 run = wandb.init(
-    project="Synthetic(High)", 
-    entity="anseunghwan",
+    project=project, 
+    entity=entity,
     tags=['inference'],
 )
 #%%
@@ -65,7 +68,7 @@ def main():
     
     """model load"""
     model_name = lambda x: f'mc_medGAN_{config["dataset"]}' if x else f'medGAN_{config["dataset"]}'
-    artifact = wandb.use_artifact(f'anseunghwan/HDistVAE/{model_name(config["mc"])}:v{config["num"]}', type='model')
+    artifact = wandb.use_artifact(f'{entity}/{project}/{model_name(config["mc"])}:v{config["num"]}', type='model')
     for key, item in artifact.metadata.items():
         config[key] = item
     model_dir = artifact.download()
@@ -105,7 +108,7 @@ def main():
     auto_model_module = importlib.import_module('module.model_auto')
     importlib.reload(auto_model_module)
     auto_model_name = lambda x: f'dec_mc_medGAN_{config["dataset"]}' if x else f'dec_medGAN_{config["dataset"]}'
-    artifact = wandb.use_artifact(f'anseunghwan/HDistVAE/{auto_model_name(config["mc"])}:v{config["seed"]}', type='model')
+    artifact = wandb.use_artifact(f'{entity}/{project}/{auto_model_name(config["mc"])}:v{config["seed"]}', type='model')
     model_dir = artifact.download()
     
     autoencoder = getattr(auto_model_module, 'AutoEncoder')(

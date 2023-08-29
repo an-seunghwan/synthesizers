@@ -23,9 +23,12 @@ except:
     subprocess.run(["wandb", "login"], input=key[0], encoding='utf-8')
     import wandb
 
+project = "Synthetic(High)"
+entity = "anseunghwan"
+
 run = wandb.init(
-    project="Synthetic(High)", 
-    entity="anseunghwan",
+    project=project, 
+    entity=entity,
     # tags=[''],
 )
 #%%
@@ -91,7 +94,7 @@ def main():
     auto_model_module = importlib.import_module('module.model_auto')
     importlib.reload(auto_model_module)
     auto_model_name = lambda x: f'dec_mc_medGAN_{config["dataset"]}' if x else f'dec_medGAN_{config["dataset"]}'
-    artifact = wandb.use_artifact(f'anseunghwan/HDistVAE/{auto_model_name(config["mc"])}:v{config["seed"]}', type='model')
+    artifact = wandb.use_artifact(f'{entity}/{project}/{auto_model_name(config["mc"])}:v{config["seed"]}', type='model')
     model_dir = artifact.download()
     
     OutputInfo_list = None

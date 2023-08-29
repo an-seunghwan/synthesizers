@@ -31,9 +31,12 @@ except:
     subprocess.run(["wandb", "login"], input=key[0], encoding='utf-8')
     import wandb
 
+project = "Synthetic(High)"
+entity = "anseunghwan"
+
 run = wandb.init(
-    project="Synthetic(High)", 
-    entity="anseunghwan",
+    project=project, 
+    entity=entity,
     tags=['inference'],
 )
 #%%
@@ -58,7 +61,7 @@ def main():
     
     """model load"""
     model_name = f'DAAE_{config["dataset"]}'
-    artifact = wandb.use_artifact(f'anseunghwan/HDistVAE/{model_name}:v{config["num"]}', type='model')
+    artifact = wandb.use_artifact(f'{entity}/{project}/{model_name}:v{config["num"]}', type='model')
     for key, item in artifact.metadata.items():
         config[key] = item
     model_dir = artifact.download()
