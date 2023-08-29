@@ -24,9 +24,9 @@ except:
     import wandb
 
 run = wandb.init(
-    project="HDistVAE", 
+    project="Synthetic(High)", 
     entity="anseunghwan",
-    tags=['medGAN'],
+    # tags=[''],
 )
 #%%
 import ast
@@ -42,7 +42,8 @@ def get_args(debug):
     
     parser.add_argument('--seed', type=int, default=0, 
                         help='seed for repeatable results')
-    parser.add_argument('--dataset', type=str, default='census', 
+    parser.add_argument('--model', type=str, default='medGAN')
+    parser.add_argument('--dataset', type=str, default='survey', 
                         help='Dataset options: mnist, census, survey')
     
     parser.add_argument("--embedding_dim", default=128, type=int,
@@ -62,9 +63,6 @@ def get_args(debug):
                         help='L2 regularization: weight decay')
     parser.add_argument('--tau', default=0.666, type=float,
                         help='temperature in Gumbel-Softmax')
-    
-    # parser.add_argument('--mc', default=False, type=str2bool,
-    #                     help='Multi-Categorical setting')
     
     if debug:
         return parser.parse_args(args=[])
@@ -127,9 +125,9 @@ def main():
     discriminator.train(), generator.train()
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters())
-    num_params = count_parameters(autoencoder.decoder) + count_parameters(discriminator) + count_parameters(generator)
-    print("Number of Parameters:", num_params)
-    wandb.log({'Number of Parameters': num_params})
+    num_params = count_parameters(autoencoder.decoder) + count_parameters(generator)
+    print(f"Number of Parameters: {num_params / 1000:.1f}K")
+    wandb.log({'Number of Parameters': num_params / 1000})
     #%%
     optimizer_D = torch.optim.Adam(
         discriminator.parameters(), 

@@ -23,9 +23,9 @@ except:
     import wandb
 
 run = wandb.init(
-    project="HDistVAE", 
+    project="Synthetic(High)", 
     entity="anseunghwan",
-    tags=['DAAE'],
+    # tags=[''],
 )
 #%%
 import ast
@@ -41,12 +41,13 @@ def get_args(debug):
     
     parser.add_argument('--seed', type=int, default=0, 
                         help='seed for repeatable results')
+    parser.add_argument('--model', type=str, default='DAAE')
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
     parser.add_argument("--embedding_dim", default=128, type=int, # noise_dim
                         help="the embedding dimension size")
-    parser.add_argument("--hidden_dims", default=[128, 128], type=arg_as_list,
+    parser.add_argument("--hidden_dims", default=[128], type=arg_as_list,
                         help="hidden dimensions for autoencoder")
     parser.add_argument("--hidden_dims_disc", default=[128], type=arg_as_list,
                         help="hidden dimensions for discriminator")
@@ -61,8 +62,6 @@ def get_args(debug):
                         help='learning rate')
     parser.add_argument('--penalty', default=0.1, type=float,
                         help='WGAN-GP gradient penalty lambda.')
-    # parser.add_argument('--mc', default=False, type=bool,
-    #                     help='Multi-Categorical setting')
     
     if debug:
         return parser.parse_args(args=[])
@@ -112,11 +111,9 @@ def main():
     generator.train(), discriminator_x.train(), discriminator_z.train()
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters())
-    num_params = count_parameters(autoencoder) \
-        + count_parameters(discriminator_x) + count_parameters(discriminator_z) \
-            + count_parameters(generator)
-    print("Number of Parameters:", num_params)
-    wandb.log({'Number of Parameters': num_params})
+    num_params = count_parameters(autoencoder.decoder) + count_parameters(generator)
+    print(f"Number of Parameters: {num_params / 1000:.1f}K")
+    wandb.log({'Number of Parameters': num_params / 1000})
     #%%
     optimizer_enc = torch.optim.Adam(
         autoencoder.encoder.parameters(), 

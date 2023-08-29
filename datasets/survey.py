@@ -20,9 +20,7 @@ def main():
     #%%
     print("Data pre-processing...")
     colnames = [
-        # "ACCESS", 
         "ACR",
-        # "AGS",
         "BATH",
         "BLD",
         "BROADBND",
@@ -39,7 +37,6 @@ def main():
         "OTHSVCEX",
         "REFR",
         "RWAT",
-        # "RWATPR",
         "SATELLITE",
         "SINK",
         "STOV",
@@ -73,7 +70,6 @@ def main():
         "R65",
         "RESMODE",
         "SRNT",
-        # "SSMC",
         "SVAL",
         "WIF",
         "WKEXREL",
@@ -92,7 +88,7 @@ def main():
     df = df.reset_index().drop(columns=['index'])
     #%%
     print("Data splitting...")
-    np.random.seed(1)
+    np.random.seed(42)
     idx = np.random.choice(
         len(df), 
         len(df), 
@@ -104,6 +100,9 @@ def main():
     print("Data saving...")
     train.to_csv("../data/survey_train.csv")
     test.to_csv("../data/survey_test.csv")
+    
+    print(train.shape)
+    print(test.shape)
     #%%
     # for dis in colnames:
     #     if len(df[dis].unique()) == 1:

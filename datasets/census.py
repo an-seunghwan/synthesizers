@@ -12,7 +12,7 @@ import argparse
 def get_args(debug):
     parser = argparse.ArgumentParser('parameters')
     
-    parser.add_argument('--seed', type=int, default=1, 
+    parser.add_argument('--seed', type=int, default=42, 
                         help='seed for repeatable results')
     parser.add_argument('--train_length', type=int, default=60000, 
                         help='length of train dataset')
@@ -37,13 +37,16 @@ def main():
         len(df_raw), 
         config["train_length"] + config["test_length"], 
         replace=False)
-    #%%
+    
     train = df_raw.iloc[idx[:config["train_length"]]].reset_index(drop=True)
     test = df_raw.iloc[idx[config["train_length"]:]].reset_index(drop=True)
     #%%
     print("Data saving...")
     train.to_csv("../data/census_train.csv")
     test.to_csv("../data/census_test.csv")
+    
+    print(train.shape)
+    print(test.shape)
 #%%
 if __name__ == '__main__':
     main()

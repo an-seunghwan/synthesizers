@@ -23,9 +23,9 @@ except:
     import wandb
 
 run = wandb.init(
-    project="HDistVAE", 
+    project="Synthetic(High)", 
     entity="anseunghwan",
-    tags=['MC-ARAE'],
+    # tags=[''],
 )
 #%%
 import ast
@@ -41,6 +41,7 @@ def get_args(debug):
     
     parser.add_argument('--seed', type=int, default=0, 
                         help='seed for repeatable results')
+    parser.add_argument('--model', type=str, default='MC-ARAE')
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
@@ -120,9 +121,9 @@ def main():
     generator.train(), discriminator.train()
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters())
-    num_params = count_parameters(autoencoder) + count_parameters(discriminator) + count_parameters(generator)
-    print("Number of Parameters:", num_params)
-    wandb.log({'Number of Parameters': num_params})
+    num_params = count_parameters(autoencoder.decoder) + count_parameters(generator)
+    print(f"Number of Parameters: {num_params / 1000:.1f}K")
+    wandb.log({'Number of Parameters': num_params / 1000})
     #%%
     optimizer_AE = torch.optim.Adam(
         autoencoder.parameters(), 

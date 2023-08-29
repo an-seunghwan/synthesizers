@@ -24,9 +24,9 @@ except:
     import wandb
 
 run = wandb.init(
-    project="HDistVAE", 
+    project="Synthetic(High)", 
     entity="anseunghwan",
-    tags=['AE-medGAN'],
+    # tags=[''],
 )
 #%%
 import ast
@@ -42,6 +42,7 @@ def get_args(debug):
     
     parser.add_argument('--seed', type=int, default=0, 
                         help='seed for repeatable results')
+    parser.add_argument('--model', type=str, default='auto')
     parser.add_argument('--dataset', type=str, default='census', 
                         help='Dataset options: mnist, census, survey')
     
@@ -61,9 +62,6 @@ def get_args(debug):
     parser.add_argument('--tau', default=0.666, type=float,
                         help='temperature in Gumbel-Softmax')
     
-    # parser.add_argument('--mc', default=False, type=str2bool,
-    #                     help='Multi-Categorical setting')
-  
     if debug:
         return parser.parse_args(args=[])
     else:    
@@ -105,9 +103,9 @@ def main():
     autoencoder.train()
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)
-    num_params = count_parameters(autoencoder)
-    print("Number of Parameters:", num_params)
-    wandb.log({'Number of Parameters': num_params})
+    num_params = count_parameters(autoencoder.decoder)
+    print(f"Number of Parameters: {num_params / 1000:.1f}K")
+    wandb.log({'Number of Parameters': num_params / 1000})
     #%%
     optimizer = torch.optim.Adam(
         autoencoder.parameters(), 
