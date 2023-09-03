@@ -48,7 +48,7 @@ def get_args(debug):
                         help='model number')
     parser.add_argument('--model', type=str, default='corGAN')
     parser.add_argument('--dataset', type=str, default='census', 
-                        help='Dataset options: mnist, census, survey')
+                        help='Dataset options: census, survey')
     
     if debug:
         return parser.parse_args(args=[])
@@ -91,8 +91,7 @@ def main():
     out = build_dataset(config)
     dataset = out[0]
 
-    if config["dataset"] == "mnist": config["p"] = 784
-    else: config["p"] = dataset.p
+    config["p"] = dataset.p
     #%%
     auto_model_module = importlib.import_module('module.model_cor_auto')
     importlib.reload(auto_model_module)

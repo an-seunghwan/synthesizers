@@ -46,7 +46,7 @@ def get_args(debug):
                         help='seed for repeatable results')
     parser.add_argument('--model', type=str, default='WGAN-GP-A')
     parser.add_argument('--dataset', type=str, default='census', 
-                        help='Dataset options: mnist, census, survey')
+                        help='Dataset options: census, survey')
     
     parser.add_argument("--embedding_dim", default=128, type=int, # noise_dim
                         help="the embedding dimension size")
@@ -87,8 +87,7 @@ def main():
     dataset = out[0]
     dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True)
 
-    if config["dataset"] == "mnist": config["p"] = 784
-    else: config["p"] = dataset.p
+    config["p"] = dataset.p
     #%%
     model_module = importlib.import_module('module.model')
     importlib.reload(model_module)
@@ -98,12 +97,14 @@ def main():
         config["p"], 
         hidden_sizes=config["hidden_dims_gen"],
         bn_decay=0.1,
-        activation='sigmoid').to(device)
+        activation='sigmoid',
+        device=device).to(device)
     discriminator = getattr(model_module, 'Discriminator')(
         config["p"], 
         hidden_sizes=config["hidden_dims_disc"],
         bn_decay=0,
-        critic=True).to(device)
+        critic=True,
+        device=device).to(device)
     generator.train(mode=True), discriminator.train(mode=True)
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters())

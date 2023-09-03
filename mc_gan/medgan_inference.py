@@ -48,7 +48,7 @@ def get_args(debug):
                         help='model number')
     parser.add_argument('--model', type=str, default='medGAN')
     parser.add_argument('--dataset', type=str, default='census', 
-                        help='Dataset options: mnist, census, survey')
+                        help='Dataset options: census, survey')
     parser.add_argument('--tau', default=0.666, type=float,
                         help='temperature in Gumbel-Softmax')
     
@@ -82,7 +82,7 @@ def main():
     importlib.reload(model_module)
 
     generator = getattr(model_module, 'medGANGenerator')(
-        config["embedding_dim"]).to(device)
+        config["embedding_dim"], device=device).to(device)
     
     try:
         generator.load_state_dict(
@@ -98,8 +98,7 @@ def main():
     out = build_dataset(config)
     dataset = out[0]
 
-    if config["dataset"] == "mnist": config["p"] = 784
-    else: config["p"] = dataset.p
+    config["p"] = dataset.p
     
     OutputInfo_list = None
     if config["mc"]:
@@ -115,7 +114,8 @@ def main():
         config, 
         config["hidden_dims"], 
         list(reversed(config["hidden_dims"])), 
-        OutputInfo_list=OutputInfo_list).to(device)
+        OutputInfo_list=OutputInfo_list,
+        device=device).to(device)
     
     try:
         autoencoder.decoder.load_state_dict(

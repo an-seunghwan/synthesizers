@@ -47,7 +47,7 @@ def get_args(debug):
                         help='seed for repeatable results')
     parser.add_argument('--model', type=str, default='medGAN_auto')
     parser.add_argument('--dataset', type=str, default='census', 
-                        help='Dataset options: mnist, census, survey')
+                        help='Dataset options: census, survey')
     
     parser.add_argument("--embedding_dim", default=128, type=int,
                         help="the embedding dimension size")
@@ -90,8 +90,7 @@ def main():
         shuffle=True,
         drop_last=False)
     
-    if config["dataset"] == "mnist": config["p"] = 784
-    else: config["p"] = dataset.p
+    config["p"] = dataset.p
     #%%
     auto_model_module = importlib.import_module('module.model_auto')
     importlib.reload(auto_model_module)
@@ -102,7 +101,8 @@ def main():
         config, 
         config["hidden_dims"], 
         list(reversed(config["hidden_dims"])), 
-        OutputInfo_list=OutputInfo_list).to(device)
+        OutputInfo_list=OutputInfo_list,
+        device=device).to(device)
     autoencoder.train()
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters() if p.requires_grad)

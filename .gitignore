@@ -19,3 +19,4 @@ sweep*
 __pycache__
 model
 *.sh
+logs

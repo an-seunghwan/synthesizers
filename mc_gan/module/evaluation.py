@@ -26,10 +26,10 @@ def evaluate(syndata, train, test, config, model_name, show=False):
             pd.DataFrame(syndata[col].value_counts(normalize=True)).reset_index(),
             pd.DataFrame(train[col].value_counts(normalize=True)).reset_index(),
             how='outer',
-            on=col
+            on='index'
         )
         prob_df = prob_df.fillna(1e-12)
-        KL.append(KLDivergence(prob_df['proportion_x'].to_numpy(), prob_df['proportion_y'].to_numpy()))
+        KL.append(KLDivergence(prob_df[f'{col}_x'].to_numpy(), prob_df[f'{col}_y'].to_numpy()))
     
     """2. Kolmogorov-Smirnov test"""
     KS = []

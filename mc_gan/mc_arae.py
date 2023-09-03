@@ -46,7 +46,7 @@ def get_args(debug):
                         help='seed for repeatable results')
     parser.add_argument('--model', type=str, default='MC-ARAE')
     parser.add_argument('--dataset', type=str, default='census', 
-                        help='Dataset options: mnist, census, survey')
+                        help='Dataset options: census, survey')
     
     parser.add_argument("--embedding_dim", default=128, type=int, # noise_dim
                         help="the embedding dimension size")
@@ -96,8 +96,7 @@ def main():
     dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True)
     OutputInfo_list = out[3]
 
-    if config["dataset"] == "mnist": config["p"] = 784
-    else: config["p"] = dataset.p
+    config["p"] = dataset.p
     #%%
     auto_model_module = importlib.import_module('module.model_auto')
     importlib.reload(auto_model_module)
@@ -105,7 +104,8 @@ def main():
         config, 
         config["hidden_dims"], 
         list(reversed(config["hidden_dims"])), 
-        OutputInfo_list=OutputInfo_list).to(device)
+        OutputInfo_list=OutputInfo_list,
+        device=device).to(device)
     autoencoder.train()
     #%%
     model_module = importlib.import_module('module.model')
@@ -115,12 +115,14 @@ def main():
         config["embedding_dim"], 
         config["embedding_dim"], 
         hidden_sizes=config["hidden_dims_gen"],
-        bn_decay=0.1).to(device)
+        bn_decay=0.1,
+        device=device).to(device)
     discriminator = getattr(model_module, 'Discriminator')(
         config["embedding_dim"], 
         hidden_sizes=config["hidden_dims_disc"],
         bn_decay=0,
-        critic=True).to(device)
+        critic=True,
+        device=device).to(device)
     generator.train(), discriminator.train()
     #%%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters())

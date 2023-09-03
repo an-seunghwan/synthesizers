@@ -46,7 +46,7 @@ def postprocess(syndata, OutputInfo_list, colnames, discrete_dicts, discrete_dic
         st = ed
 
     samples = torch.cat(samples, dim=1)
-    syndata = pd.DataFrame(samples.numpy(), columns=colnames)
+    syndata = pd.DataFrame(samples.cpu().numpy(), columns=colnames)
 
     """reverse to original column names"""
     for dis, disdict in zip(colnames, discrete_dicts_reverse):

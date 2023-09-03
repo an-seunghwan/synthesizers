@@ -48,7 +48,7 @@ def get_args(debug):
                         help='model number')
     parser.add_argument('--model', type=str, default='MC-WGAN-GP')
     parser.add_argument('--dataset', type=str, default='census', 
-                        help='Dataset options: mnist, census, survey')
+                        help='Dataset options: census, survey')
     parser.add_argument('--tau', default=0.666, type=float,
                         help='temperature in Gumbel-Softmax')
     
@@ -77,8 +77,7 @@ def main():
     dataset = out[0]
     OutputInfo_list = out[3]
 
-    if config["dataset"] == "mnist": config["p"] = 784
-    else: config["p"] = dataset.p
+    config["p"] = dataset.p
     #%%
     model_module = importlib.import_module('module.model')
     importlib.reload(model_module)
@@ -87,7 +86,8 @@ def main():
         config["embedding_dim"], 
         [x.dim for x in OutputInfo_list], 
         hidden_sizes=config["hidden_dims_gen"],
-        bn_decay=0.1).to(device)
+        bn_decay=0.1,
+        device=device).to(device)
     #%%
     try:
         generator.load_state_dict(
