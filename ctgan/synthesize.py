@@ -1,16 +1,19 @@
-#%%
+# %%
 import os
+
 # os.environ['KMP_DUPLICATE_LIB_OK']='True'
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 import sys
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-#%%
+# %%
 import numpy as np
 import pandas as pd
 import tqdm
 from PIL import Image
 import matplotlib.pyplot as plt
+
 # plt.switch_backend('agg')
 
 import torch
@@ -30,110 +33,129 @@ from evaluation.evaluation import (
     classification_eval,
     goodness_of_fit,
     DCR_metric,
-    attribute_disclosure
+    attribute_disclosure,
 )
 from dython.nominal import associations
-#%%
+
+# %%
 import sys
 import subprocess
+
 try:
     import wandb
 except:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "wandb"])
     with open("./wandb_api.txt", "r") as f:
         key = f.readlines()
-    subprocess.run(["wandb", "login"], input=key[0], encoding='utf-8')
+    subprocess.run(["wandb", "login"], input=key[0], encoding="utf-8")
     import wandb
 
 run = wandb.init(
-    project="DistVAE", 
+    project="DistVAE",
     entity="anseunghwan",
-    tags=['CTGAN', 'Synthetic'],
+    tags=["CTGAN", "Synthetic"],
 )
-#%%
+# %%
 import argparse
+
+
 def get_args(debug):
-    parser = argparse.ArgumentParser('parameters')
-    
-    parser.add_argument('--num', type=int, default=0, 
-                        help='model version')
-    parser.add_argument('--dataset', type=str, default='covtype', 
-                        help='Dataset options: covtype, credit, loan, adult, cabs, kings')
+    parser = argparse.ArgumentParser("parameters")
+
+    parser.add_argument("--num", type=int, default=0, help="model version")
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="covtype",
+        help="Dataset options: covtype, credit, loan, adult, cabs, kings",
+    )
 
     if debug:
         return parser.parse_args(args=[])
-    else:    
+    else:
         return parser.parse_args()
-#%%
+
+
+# %%
 def main():
-    #%%
-    config = vars(get_args(debug=False)) # default configuration
-    
+    # %%
+    config = vars(get_args(debug=False))  # default configuration
+
     """model load"""
     artifact = wandb.use_artifact(
-        'anseunghwan/DistVAE/CTGAN_{}:v{}'.format(config["dataset"], config["num"]), type='model')
+        "anseunghwan/DistVAE/CTGAN_{}:v{}".format(config["dataset"], config["num"]),
+        type="model",
+    )
     for key, item in artifact.metadata.items():
         config[key] = item
     model_dir = artifact.download()
-    
+
     config["cuda"] = torch.cuda.is_available()
-    device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+    device = (
+        torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    )
     wandb.config.update(config)
-    
+
     set_random_seed(config["seed"])
     torch.manual_seed(config["seed"])
     if config["cuda"]:
         torch.cuda.manual_seed(config["seed"])
-    #%%
+    # %%
     """dataset"""
-    train_data, dataset, dataloader, transformer, train, test, continuous, discrete = generate_dataset(config, device, random_state=0)
-    
+    (
+        train_data,
+        dataset,
+        dataloader,
+        transformer,
+        train,
+        test,
+        continuous,
+        discrete,
+    ) = generate_dataset(config, device, random_state=0)
+
     assert validate_discrete_columns(train, discrete) is None
-    #%%
+    # %%
     """training-by-sampling"""
     data_sampler = DataSampler(
-        train_data,
-        transformer.output_info_list,
-        config["log_frequency"])
+        train_data, transformer.output_info_list, config["log_frequency"]
+    )
 
     config["data_dim"] = transformer.output_dimensions
-    #%%
+    # %%
     """model"""
-    generator_dim = [int(x) for x in config["generator_dim"].split(',')]
-    
+    generator_dim = [int(x) for x in config["generator_dim"].split(",")]
+
     generator = Generator(
         config["latent_dim"] + data_sampler.dim_cond_vec(),
         generator_dim,
-        config["data_dim"]
+        config["data_dim"],
     ).to(device)
-    
+
     if config["cuda"]:
-        model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
-        generator.load_state_dict(
-            torch.load(
-                model_dir + '/' + model_name))
+        model_name = [x for x in os.listdir(model_dir) if x.endswith("pth")][0]
+        generator.load_state_dict(torch.load(model_dir + "/" + model_name))
     else:
-        model_name = [x for x in os.listdir(model_dir) if x.endswith('pth')][0]
+        model_name = [x for x in os.listdir(model_dir) if x.endswith("pth")][0]
         generator.load_state_dict(
-            torch.load(
-                model_dir + '/' + model_name, map_location=torch.device('cpu')))
-    
+            torch.load(model_dir + "/" + model_name, map_location=torch.device("cpu"))
+        )
+
     generator.eval()
-    #%%
-    if not os.path.exists('./assets/{}'.format(config["dataset"])):
-        os.makedirs('./assets/{}'.format(config["dataset"]))
-    #%%
+    # %%
+    if not os.path.exists("./assets/{}".format(config["dataset"])):
+        os.makedirs("./assets/{}".format(config["dataset"]))
+    # %%
     """synthetic dataset"""
     torch.manual_seed(config["seed"])
     n = len(train)
-    
+
     steps = n // config["batch_size"] + 1
     data = []
     for i in range(steps):
         mean = torch.zeros(config["batch_size"], config["latent_dim"])
         std = mean + 1
         fakez = torch.normal(mean=mean, std=std).to(device)
-        
+
         condvec = data_sampler.sample_original_condvec(config["batch_size"])
         c1 = condvec
         c1 = torch.from_numpy(c1).to(device)
@@ -147,30 +169,26 @@ def main():
     data = data[:n]
 
     sample_df = transformer.inverse_transform(data)
-    #%%
+    # %%
     """Correlation Structure"""
-    syn_asso = associations(
-        sample_df, nominal_columns=discrete,
-        compute_only=True)
-    true_asso = associations(
-        train, nominal_columns=discrete,
-        compute_only=True)
+    syn_asso = associations(sample_df, nominal_columns=discrete, compute_only=True)
+    true_asso = associations(train, nominal_columns=discrete, compute_only=True)
     corr_dist = np.linalg.norm(true_asso["corr"] - syn_asso["corr"])
-    print('Corr Dist: {:.3f}'.format(corr_dist))
-    wandb.log({'Corr Dist': corr_dist})
-    #%%
+    print("Corr Dist: {:.3f}".format(corr_dist))
+    wandb.log({"Corr Dist": corr_dist})
+    # %%
     # preprocess
     train_mean = train[continuous].mean(axis=0)
     train_std = train[continuous].std(axis=0)
     train[continuous] = (train[continuous] - train_mean) / train_std
     test[continuous] = (test[continuous] - train_mean) / train_std
-    
+
     df = pd.concat([train, test], axis=0)
     df_dummy = []
     for d in discrete:
         df_dummy.append(pd.get_dummies(df[d], prefix=d))
     df = pd.concat([df.drop(columns=discrete)] + df_dummy, axis=1)
-    
+
     if config["dataset"] == "covtype":
         train = df.iloc[:45000]
         test = df.iloc[45000:]
@@ -190,60 +208,68 @@ def main():
         train = df.iloc[:20000]
         test = df.iloc[20000:]
     else:
-        raise ValueError('Not supported dataset!')
-    #%%
+        raise ValueError("Not supported dataset!")
+    # %%
     df_dummy = []
     for d in discrete:
         df_dummy.append(pd.get_dummies(sample_df[d], prefix=d))
     sample_df = pd.concat([sample_df.drop(columns=discrete)] + df_dummy, axis=1)
-    #%%
+    # %%
     sample_mean = sample_df[continuous].mean(axis=0)
     sample_std = sample_df[continuous].std(axis=0)
     sample_df_scaled = sample_df.copy()
-    sample_df_scaled[continuous] = (sample_df_scaled[continuous] - sample_mean) / sample_std
-    #%%
-    """Goodness of Fit""" 
+    sample_df_scaled[continuous] = (
+        sample_df_scaled[continuous] - sample_mean
+    ) / sample_std
+    # %%
+    """Goodness of Fit"""
     print("\nGoodness of Fit...\n")
-    
+
     cut_points1 = merge_discrete(train.to_numpy(), len(continuous))
     cut_points2 = merge_discrete(sample_df_scaled.to_numpy(), len(continuous))
-    
-    Dn, W1 = goodness_of_fit(len(continuous), train.to_numpy(), sample_df_scaled.to_numpy(), cut_points1, cut_points2)
-    cont_Dn = np.mean(Dn[:len(continuous)])
-    disc_Dn = np.mean(Dn[len(continuous):])
-    cont_W1 = np.mean(W1[:len(continuous)])
-    disc_W1 = np.mean(W1[len(continuous):])
-    
-    print('K-S (continuous): {:.3f}'.format(cont_Dn))
-    print('K-S (discrete): {:.3f}'.format(disc_Dn))
-    print('1-WD (continuous): {:.3f}'.format(cont_W1))
-    print('1-WD (discrete): {:.3f}'.format(disc_W1))
-    wandb.log({'K-S (continuous)': cont_Dn})
-    wandb.log({'K-S (discrete)': disc_Dn})
-    wandb.log({'1-WD (continuous)': cont_W1})
-    wandb.log({'1-WD (discrete)': disc_W1})
-    
+
+    Dn, W1 = goodness_of_fit(
+        len(continuous),
+        train.to_numpy(),
+        sample_df_scaled.to_numpy(),
+        cut_points1,
+        cut_points2,
+    )
+    cont_Dn = np.mean(Dn[: len(continuous)])
+    disc_Dn = np.mean(Dn[len(continuous) :])
+    cont_W1 = np.mean(W1[: len(continuous)])
+    disc_W1 = np.mean(W1[len(continuous) :])
+
+    print("K-S (continuous): {:.3f}".format(cont_Dn))
+    print("K-S (discrete): {:.3f}".format(disc_Dn))
+    print("1-WD (continuous): {:.3f}".format(cont_W1))
+    print("1-WD (discrete): {:.3f}".format(disc_W1))
+    wandb.log({"K-S (continuous)": cont_Dn})
+    wandb.log({"K-S (discrete)": disc_Dn})
+    wandb.log({"1-WD (continuous)": cont_W1})
+    wandb.log({"1-WD (discrete)": disc_W1})
+
     # Dn, W1 = goodness_of_fit(len(continuous), train.to_numpy(), sample_df_scaled.to_numpy())
-    
+
     # print('Goodness of Fit (Kolmogorov): {:.3f}'.format(Dn))
     # print('Goodness of Fit (1-Wasserstein): {:.3f}'.format(W1))
     # wandb.log({'Goodness of Fit (Kolmogorov)': Dn})
     # wandb.log({'Goodness of Fit (1-Wasserstein)': W1})
-    #%%
-    """Privacy Preservability""" # only continuous
+    # %%
+    """Privacy Preservability"""  # only continuous
     print("\nDistance to Cloesest Record...\n")
-    
+
     privacy = DCR_metric(train[continuous], sample_df_scaled[continuous])
-    
+
     DCR = privacy
     # DCR = privacy[0, :3]
-    print('DCR (R&S): {:.3f}'.format(DCR[0]))
-    print('DCR (R): {:.3f}'.format(DCR[1]))
-    print('DCR (S): {:.3f}'.format(DCR[2]))
-    wandb.log({'DCR (R&S)': DCR[0]})
-    wandb.log({'DCR (R)': DCR[1]})
-    wandb.log({'DCR (S)': DCR[2]})
-    
+    print("DCR (R&S): {:.3f}".format(DCR[0]))
+    print("DCR (R): {:.3f}".format(DCR[1]))
+    print("DCR (S): {:.3f}".format(DCR[2]))
+    wandb.log({"DCR (R&S)": DCR[0]})
+    wandb.log({"DCR (R)": DCR[1]})
+    wandb.log({"DCR (S)": DCR[2]})
+
     # NNDR = privacy[0, 3:]
     # print('NNDR (R&S): {:.3f}'.format(NNDR[0]))
     # print('NNDR (R): {:.3f}'.format(NNDR[1]))
@@ -251,66 +277,74 @@ def main():
     # wandb.log({'NNDR (R&S)': NNDR[0]})
     # wandb.log({'NNDR (R)': NNDR[1]})
     # wandb.log({'NNDR (S)': NNDR[2]})
-    #%%
+    # %%
     print("\nAttribute Disclosure...\n")
-    
+
     cut_points = merge_discrete(sample_df_scaled.to_numpy(), len(continuous))
-    
-    compromised_idx = np.random.choice(range(len(train)), 
-                                       int(len(train) * 0.01), 
-                                       replace=False)
+
+    compromised_idx = np.random.choice(
+        range(len(train)), int(len(train) * 0.01), replace=False
+    )
     compromised = train.iloc[compromised_idx]
-    #%%
+    # %%
     for attr_num in [1, 2, 3, 4, 5]:
-        if attr_num > len(continuous): break
+        if attr_num > len(continuous):
+            break
         attr_compromised = continuous[:attr_num]
         for K in [1, 10, 100]:
             acc, f1 = attribute_disclosure(
-                K, compromised, sample_df_scaled, attr_compromised, cut_points, len(continuous)
+                K,
+                compromised,
+                sample_df_scaled,
+                attr_compromised,
+                cut_points,
+                len(continuous),
             )
-            print(f'AD Accuracy (S={attr_num},K={K}):', acc)
-            print(f'AD F1 (S={attr_num},K={K}):', f1)
-            wandb.log({f'AD Accuracy (S={attr_num},K={K})': acc})
-            wandb.log({f'AD F1 (S={attr_num},K={K})': f1})
-    #%%
+            print(f"AD Accuracy (S={attr_num},K={K}):", acc)
+            print(f"AD F1 (S={attr_num},K={K}):", f1)
+            wandb.log({f"AD Accuracy (S={attr_num},K={K})": acc})
+            wandb.log({f"AD F1 (S={attr_num},K={K})": f1})
+    # %%
     """Regression"""
     if config["dataset"] == "covtype":
-        target = 'Elevation'
+        target = "Elevation"
     elif config["dataset"] == "credit":
-        target = 'AMT_CREDIT'
+        target = "AMT_CREDIT"
     elif config["dataset"] == "loan":
-        target = 'Age'
+        target = "Age"
     elif config["dataset"] == "adult":
-        target = 'age'
+        target = "age"
     elif config["dataset"] == "cabs":
-        target = 'Trip_Distance'
+        target = "Trip_Distance"
     elif config["dataset"] == "kings":
-        target = 'long'
+        target = "long"
     else:
-        raise ValueError('Not supported dataset!')
-    #%%
+        raise ValueError("Not supported dataset!")
+    # %%
     # standardization except for target variable
     real_train = train.copy()
     real_test = test.copy()
     real_train[target] = real_train[target] * train_std[target] + train_mean[target]
     real_test[target] = real_test[target] * train_std[target] + train_mean[target]
-    
+
     cont = [x for x in continuous if x not in [target]]
     sample_df_scaled = sample_df.copy()
-    sample_df_scaled[cont] = (sample_df_scaled[cont] - sample_mean[cont]) / sample_std[cont]
-    #%%
+    sample_df_scaled[cont] = (sample_df_scaled[cont] - sample_mean[cont]) / sample_std[
+        cont
+    ]
+    # %%
     # baseline
     print("\nBaseline: Machine Learning Utility in Regression...\n")
     base_reg = regression_eval(real_train, real_test, target)
-    wandb.log({'MARE (Baseline)': np.mean([x[1] for x in base_reg])})
+    wandb.log({"MARE (Baseline)": np.mean([x[1] for x in base_reg])})
     # wandb.log({'R^2 (Baseline)': np.mean([x[1] for x in base_reg])})
-    #%%
+    # %%
     # CTGAN
     print("\nSynthetic: Machine Learning Utility in Regression...\n")
     reg = regression_eval(sample_df_scaled, real_test, target)
-    wandb.log({'MARE': np.mean([x[1] for x in reg])})
+    wandb.log({"MARE": np.mean([x[1] for x in reg])})
     # wandb.log({'R^2': np.mean([x[1] for x in reg])})
-    #%%
+    # %%
     # # visualization
     # fig = plt.figure(figsize=(5, 4))
     # plt.plot([x[1] for x in base_reg], 'o--', label='baseline')
@@ -325,42 +359,44 @@ def main():
     # # plt.show()
     # plt.close()
     # wandb.log({'ML Utility (Regression)': wandb.Image(fig)})
-    #%%
+    # %%
     """Classification"""
     if config["dataset"] == "covtype":
-        target = 'Cover_Type'
+        target = "Cover_Type"
     elif config["dataset"] == "credit":
-        target = 'TARGET'
+        target = "TARGET"
     elif config["dataset"] == "loan":
-        target = 'Personal Loan'
+        target = "Personal Loan"
     elif config["dataset"] == "adult":
-        target = 'income'
+        target = "income"
     elif config["dataset"] == "cabs":
-        target = 'Surge_Pricing_Type'
+        target = "Surge_Pricing_Type"
     elif config["dataset"] == "kings":
-        target = 'condition'
+        target = "condition"
     else:
-        raise ValueError('Not supported dataset!')
-    #%%
+        raise ValueError("Not supported dataset!")
+    # %%
     # baseline
     print("\nBaseline: Machine Learning Utility in Classification...\n")
     base_clf = classification_eval(train, test, target)
-    wandb.log({'F1 (Baseline)': np.mean([x[1] for x in base_clf])})
-    #%%
+    wandb.log({"F1 (Baseline)": np.mean([x[1] for x in base_clf])})
+    # %%
     sample_df_scaled = sample_df.copy()
-    sample_df_scaled[continuous] = (sample_df_scaled[continuous] - sample_mean) / sample_std
-    
+    sample_df_scaled[continuous] = (
+        sample_df_scaled[continuous] - sample_mean
+    ) / sample_std
+
     # CTGAN
     print("\nSynthetic: Machine Learning Utility in Classification...\n")
     clf = classification_eval(sample_df_scaled, test, target)
-    wandb.log({'F1': np.mean([x[1] for x in clf])})
-    #%%
+    wandb.log({"F1": np.mean([x[1] for x in clf])})
+    # %%
     # plt.bar(np.arange(7) - 0.17, train.describe().loc['mean'][-7:],
     #         width=0.3, label="train")
     # plt.bar(np.arange(7) + 0.17, sample_df_scaled.describe().loc['mean'][-7:],
     #         width=0.3, label="synthetic")
     # plt.legend()
-    #%%
+    # %%
     # # visualization
     # fig = plt.figure(figsize=(5, 4))
     # plt.plot([x[1] for x in base_clf], 'o--', label='baseline')
@@ -374,9 +410,11 @@ def main():
     # # plt.show()
     # plt.close()
     # wandb.log({'ML Utility (Classification)': wandb.Image(fig)})
-    #%%
+    # %%
     wandb.run.finish()
-#%%
-if __name__ == '__main__':
+
+
+# %%
+if __name__ == "__main__":
     main()
-#%%
+# %%

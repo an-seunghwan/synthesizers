@@ -1,9 +1,9 @@
-#%%
+# %%
 """
 Reference:
 [1] https://github.com/sdv-dev/CTGAN/blob/master/ctgan/data_transformer.py
 """
-#%%
+# %%
 from collections import namedtuple
 
 import numpy as np
@@ -12,15 +12,17 @@ from joblib import Parallel, delayed
 
 from .numerical import ClusterBasedNormalizer
 from rdt.transformers import OneHotEncoder
+
 # from rdt.transformers import ClusterBasedNormalizer, OneHotEncoder
 
-SpanInfo = namedtuple('SpanInfo', ['dim', 'activation_fn'])
+SpanInfo = namedtuple("SpanInfo", ["dim", "activation_fn"])
 ColumnTransformInfo = namedtuple(
-    'ColumnTransformInfo', [
-        'column_name', 'column_type', 'transform', 'output_info', 'output_dimensions'
-    ]
+    "ColumnTransformInfo",
+    ["column_name", "column_type", "transform", "output_info", "output_dimensions"],
 )
-#%%
+
+
+# %%
 class DataTransformer(object):
     """Data Transformer.
     Model continuous columns with a BayesianGMM and normalized to a scalar [0, 1] and a vector.
@@ -48,15 +50,21 @@ class DataTransformer(object):
                 A ``ColumnTransformInfo`` object.
         """
         column_name = data.columns[0]
-        gm = ClusterBasedNormalizer(model_missing_values=True, max_clusters=min(len(data), 10),
-                                    random_state=random_state)
+        gm = ClusterBasedNormalizer(
+            model_missing_values=True,
+            max_clusters=min(len(data), 10),
+            random_state=random_state,
+        )
         gm.fit(data, column_name)
         num_components = sum(gm.valid_component_indicator)
 
         return ColumnTransformInfo(
-            column_name=column_name, column_type='continuous', transform=gm,
-            output_info=[SpanInfo(1, 'tanh'), SpanInfo(num_components, 'softmax')],
-            output_dimensions=1 + num_components)
+            column_name=column_name,
+            column_type="continuous",
+            transform=gm,
+            output_info=[SpanInfo(1, "tanh"), SpanInfo(num_components, "softmax")],
+            output_dimensions=1 + num_components,
+        )
 
     def _fit_discrete(self, data):
         """Fit one hot encoder for discrete column.
@@ -73,9 +81,12 @@ class DataTransformer(object):
         num_categories = len(ohe.dummies)
 
         return ColumnTransformInfo(
-            column_name=column_name, column_type='discrete', transform=ohe,
-            output_info=[SpanInfo(num_categories, 'softmax')],
-            output_dimensions=num_categories)
+            column_name=column_name,
+            column_type="discrete",
+            transform=ohe,
+            output_info=[SpanInfo(num_categories, "softmax")],
+            output_dimensions=num_categories,
+        )
 
     def fit(self, raw_data, discrete_columns=(), random_state=0):
         """Fit the ``DataTransformer``.
@@ -100,8 +111,9 @@ class DataTransformer(object):
             if column_name in discrete_columns:
                 column_transform_info = self._fit_discrete(raw_data[[column_name]])
             else:
-                column_transform_info = self._fit_continuous(raw_data[[column_name]],
-                                                             random_state=random_state)
+                column_transform_info = self._fit_continuous(
+                    raw_data[[column_name]], random_state=random_state
+                )
 
             self.output_info_list.append(column_transform_info.output_info)
             self.output_dimensions += column_transform_info.output_dimensions
@@ -117,8 +129,8 @@ class DataTransformer(object):
         #  The first column (ending in '.normalized') stays the same,
         #  but the lable encoded column (ending in '.component') is one hot encoded.
         output = np.zeros((len(transformed), column_transform_info.output_dimensions))
-        output[:, 0] = transformed[f'{column_name}.normalized'].to_numpy()
-        index = transformed[f'{column_name}.component'].to_numpy().astype(int)
+        output[:, 0] = transformed[f"{column_name}.normalized"].to_numpy()
+        index = transformed[f"{column_name}.component"].to_numpy().astype(int)
         output[np.arange(index.size), index + 1] = 1.0
 
         return output
@@ -135,10 +147,14 @@ class DataTransformer(object):
         for column_transform_info in column_transform_info_list:
             column_name = column_transform_info.column_name
             data = raw_data[[column_name]]
-            if column_transform_info.column_type == 'continuous':
-                column_data_list.append(self._transform_continuous(column_transform_info, data))
+            if column_transform_info.column_type == "continuous":
+                column_data_list.append(
+                    self._transform_continuous(column_transform_info, data)
+                )
             else:
-                column_data_list.append(self._transform_discrete(column_transform_info, data))
+                column_data_list.append(
+                    self._transform_discrete(column_transform_info, data)
+                )
 
         return column_data_list
 
@@ -168,8 +184,7 @@ class DataTransformer(object):
         # Only use parallelization with larger data sizes.
         # Otherwise, the transformation will be slower.
         column_data_list = self._synchronous_transform(
-            raw_data,
-            self._column_transform_info_list
+            raw_data, self._column_transform_info_list
         )
         # if raw_data.shape[0] < 500:
         #     column_data_list = self._synchronous_transform(
@@ -184,7 +199,9 @@ class DataTransformer(object):
 
         return np.concatenate(column_data_list, axis=1).astype(float)
 
-    def _inverse_transform_continuous(self, column_transform_info, column_data, sigmas, st):
+    def _inverse_transform_continuous(
+        self, column_transform_info, column_data, sigmas, st
+    ):
         gm = column_transform_info.transform
         data = pd.DataFrame(column_data[:, :2], columns=list(gm.get_output_sdtypes()))
         data.iloc[:, 1] = np.argmax(column_data[:, 1:], axis=1)
@@ -209,21 +226,24 @@ class DataTransformer(object):
         column_names = []
         for column_transform_info in self._column_transform_info_list:
             dim = column_transform_info.output_dimensions
-            column_data = data[:, st:st + dim]
-            if column_transform_info.column_type == 'continuous':
+            column_data = data[:, st : st + dim]
+            if column_transform_info.column_type == "continuous":
                 recovered_column_data = self._inverse_transform_continuous(
-                    column_transform_info, column_data, sigmas, st)
+                    column_transform_info, column_data, sigmas, st
+                )
             else:
                 recovered_column_data = self._inverse_transform_discrete(
-                    column_transform_info, column_data)
+                    column_transform_info, column_data
+                )
 
             recovered_column_data_list.append(recovered_column_data)
             column_names.append(column_transform_info.column_name)
             st += dim
 
         recovered_data = np.column_stack(recovered_column_data_list)
-        recovered_data = (pd.DataFrame(recovered_data, columns=column_names)
-                          .astype(self._column_raw_dtypes))
+        recovered_data = pd.DataFrame(recovered_data, columns=column_names).astype(
+            self._column_raw_dtypes
+        )
         if not self.dataframe:
             recovered_data = recovered_data.to_numpy()
 
@@ -236,23 +256,29 @@ class DataTransformer(object):
         for column_transform_info in self._column_transform_info_list:
             if column_transform_info.column_name == column_name:
                 break
-            if column_transform_info.column_type == 'discrete':
+            if column_transform_info.column_type == "discrete":
                 discrete_counter += 1
 
             column_id += 1
 
         else:
-            raise ValueError(f"The column_name `{column_name}` doesn't exist in the data.")
+            raise ValueError(
+                f"The column_name `{column_name}` doesn't exist in the data."
+            )
 
         ohe = column_transform_info.transform
         data = pd.DataFrame([value], columns=[column_transform_info.column_name])
         one_hot = ohe.transform(data).to_numpy()[0]
         if sum(one_hot) == 0:
-            raise ValueError(f"The value `{value}` doesn't exist in the column `{column_name}`.")
+            raise ValueError(
+                f"The value `{value}` doesn't exist in the column `{column_name}`."
+            )
 
         return {
-            'discrete_column_id': discrete_counter,
-            'column_id': column_id,
-            'value_id': np.argmax(one_hot)
+            "discrete_column_id": discrete_counter,
+            "column_id": column_id,
+            "value_id": np.argmax(one_hot),
         }
-#%%
+
+
+# %%

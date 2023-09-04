@@ -1,9 +1,9 @@
-#%%
+# %%
 """
 Reference:
 [1] https://github.com/sdv-dev/CTGAN/blob/master/ctgan/synthesizers/ctgan.py
 """
-#%%
+# %%
 import warnings
 
 import numpy as np
@@ -11,8 +11,19 @@ import pandas as pd
 import torch
 from packaging import version
 from torch import optim
-from torch.nn import BatchNorm1d, Dropout, LeakyReLU, Linear, Module, ReLU, Sequential, functional
-#%%
+from torch.nn import (
+    BatchNorm1d,
+    Dropout,
+    LeakyReLU,
+    Linear,
+    Module,
+    ReLU,
+    Sequential,
+    functional,
+)
+
+
+# %%
 class Discriminator(Module):
     """Discriminator for the CTGAN."""
 
@@ -29,7 +40,9 @@ class Discriminator(Module):
         seq += [Linear(dim, 1)]
         self.seq = Sequential(*seq)
 
-    def calc_gradient_penalty(self, real_data, fake_data, device='cpu', pac=10, lambda_=10):
+    def calc_gradient_penalty(
+        self, real_data, fake_data, device="cpu", pac=10, lambda_=10
+    ):
         """Compute the gradient penalty."""
         alpha = torch.rand(real_data.size(0) // pac, 1, 1, device=device)
         alpha = alpha.repeat(1, pac, real_data.size(1))
@@ -40,9 +53,12 @@ class Discriminator(Module):
         disc_interpolates = self(interpolates)
 
         gradients = torch.autograd.grad(
-            outputs=disc_interpolates, inputs=interpolates,
+            outputs=disc_interpolates,
+            inputs=interpolates,
             grad_outputs=torch.ones(disc_interpolates.size(), device=device),
-            create_graph=True, retain_graph=True, only_inputs=True
+            create_graph=True,
+            retain_graph=True,
+            only_inputs=True,
         )[0]
 
         gradients_view = gradients.view(-1, pac * real_data.size(1)).norm(2, dim=1) - 1
@@ -54,7 +70,9 @@ class Discriminator(Module):
         """Apply the Discriminator to the `input_`."""
         assert input_.size()[0] % self.pac == 0
         return self.seq(input_.view(-1, self.pacdim))
-#%%
+
+
+# %%
 class Residual(Module):
     """Residual layer for the CTGAN."""
 
@@ -70,7 +88,9 @@ class Residual(Module):
         out = self.bn(out)
         out = self.relu(out)
         return torch.cat([out, input_], dim=1)
-#%%
+
+
+# %%
 class Generator(Module):
     """Generator for the CTGAN."""
 
@@ -107,36 +127,43 @@ class Generator(Module):
         Returns:
             Sampled tensor of same shape as logits from the Gumbel-Softmax distribution.
         """
-        if version.parse(torch.__version__) < version.parse('1.2.0'):
+        if version.parse(torch.__version__) < version.parse("1.2.0"):
             for i in range(10):
-                transformed = functional.gumbel_softmax(logits, tau=tau, hard=hard,
-                                                        eps=eps, dim=dim)
+                transformed = functional.gumbel_softmax(
+                    logits, tau=tau, hard=hard, eps=eps, dim=dim
+                )
                 if not torch.isnan(transformed).any():
                     return transformed
-            raise ValueError('gumbel_softmax returning NaN.')
+            raise ValueError("gumbel_softmax returning NaN.")
 
         return functional.gumbel_softmax(logits, tau=tau, hard=hard, eps=eps, dim=dim)
-#%%
+
+
+# %%
 def apply_activate(data, transformer, gumbel_softmax):
     """Apply proper activation function to the output of the generator."""
     data_t = []
     st = 0
     for column_info in transformer.output_info_list:
         for span_info in column_info:
-            if span_info.activation_fn == 'tanh':
+            if span_info.activation_fn == "tanh":
                 ed = st + span_info.dim
                 data_t.append(torch.tanh(data[:, st:ed]))
                 st = ed
-            elif span_info.activation_fn == 'softmax':
+            elif span_info.activation_fn == "softmax":
                 ed = st + span_info.dim
                 transformed = gumbel_softmax(data[:, st:ed], tau=0.2)
                 data_t.append(transformed)
                 st = ed
             else:
-                raise ValueError(f'Unexpected activation function {span_info.activation_fn}.')
+                raise ValueError(
+                    f"Unexpected activation function {span_info.activation_fn}."
+                )
 
     return torch.cat(data_t, dim=1)
-#%%
+
+
+# %%
 def validate_discrete_columns(train_data, discrete_columns):
     """Check whether ``discrete_columns`` exists in ``train_data``.
     Args:
@@ -156,8 +183,10 @@ def validate_discrete_columns(train_data, discrete_columns):
             if column < 0 or column >= train_data.shape[1]:
                 invalid_columns.append(column)
     else:
-        raise TypeError('``train_data`` should be either pd.DataFrame or np.array.')
+        raise TypeError("``train_data`` should be either pd.DataFrame or np.array.")
 
     if invalid_columns:
-        raise ValueError(f'Invalid columns found: {invalid_columns}')
-#%%
+        raise ValueError(f"Invalid columns found: {invalid_columns}")
+
+
+# %%

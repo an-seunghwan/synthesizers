@@ -1,9 +1,9 @@
-#%%
+# %%
 """
 Reference:
 [1] https://github.com/sdv-dev/CTGAN/blob/master/ctgan/synthesizers/ctgan.py
 """
-#%%
+# %%
 import tqdm
 
 import numpy as np
@@ -15,7 +15,9 @@ from torch.utils.data import Dataset
 from torch.nn.functional import cross_entropy
 
 from .model import apply_activate
-#%%
+
+
+# %%
 def cond_loss(output_info_list, data, c, m):
     """Compute the cross entropy loss on the fixed discrete column."""
     loss = []
@@ -23,7 +25,7 @@ def cond_loss(output_info_list, data, c, m):
     st_c = 0
     for column_info in output_info_list:
         for span_info in column_info:
-            if len(column_info) != 1 or span_info.activation_fn != 'softmax':
+            if len(column_info) != 1 or span_info.activation_fn != "softmax":
                 # not discrete column
                 st += span_info.dim
             else:
@@ -32,7 +34,7 @@ def cond_loss(output_info_list, data, c, m):
                 tmp = functional.cross_entropy(
                     data[:, st:ed],
                     torch.argmax(c[:, st_c:ed_c], dim=1),
-                    reduction='none'
+                    reduction="none",
                 )
                 loss.append(tmp)
                 st = ed
@@ -41,25 +43,33 @@ def cond_loss(output_info_list, data, c, m):
     loss = torch.stack(loss, dim=1)  # noqa: PD013
 
     return (loss * m).sum() / data.size()[0]
-#%%
-def train(generator, discriminator, 
-          optimizerG, optimizerD,
-          train_data, data_sampler, transformer,
-          config, mean, std, 
-          device):
 
+
+# %%
+def train(
+    generator,
+    discriminator,
+    optimizerG,
+    optimizerD,
+    train_data,
+    data_sampler,
+    transformer,
+    config,
+    mean,
+    std,
+    device,
+):
     logs = {
-        'loss(G)': [], 
-        'loss(D)': [], 
-        'CE': [], 
+        "loss(G)": [],
+        "loss(D)": [],
+        "CE": [],
     }
 
     steps_per_epoch = max(len(train_data) // config["batch_size"], 1)
-    
+
     for id_ in tqdm.tqdm(range(steps_per_epoch), desc="inner loop"):
-        
         loss_ = []
-        
+
         for n in range(config["discriminator_steps"]):
             """1. Discriminator learning"""
             fakez = torch.normal(mean=mean, std=std)
@@ -76,13 +86,15 @@ def train(generator, discriminator,
 
                 perm = np.arange(config["batch_size"])
                 np.random.shuffle(perm)
-                real = data_sampler.sample_data(config["batch_size"], col[perm], opt[perm])
+                real = data_sampler.sample_data(
+                    config["batch_size"], col[perm], opt[perm]
+                )
                 c2 = c1[perm]
 
             fake = generator(fakez)
             fakeact = apply_activate(fake, transformer, generator._gumbel_softmax)
 
-            real = torch.from_numpy(real.astype('float32')).to(device)
+            real = torch.from_numpy(real.astype("float32")).to(device)
 
             if c1 is not None:
                 fake_cat = torch.cat([fakeact, c1], dim=1)
@@ -95,9 +107,10 @@ def train(generator, discriminator,
             y_real = discriminator(real_cat)
 
             pen = discriminator.calc_gradient_penalty(
-                real_cat, fake_cat, device, config["pac"])
+                real_cat, fake_cat, device, config["pac"]
+            )
             loss_d = -(torch.mean(y_real) - torch.mean(y_fake))
-            loss_.append(('loss(D)', loss_d))
+            loss_.append(("loss(D)", loss_d))
 
             optimizerD.zero_grad()
             pen.backward(retain_graph=True)
@@ -130,8 +143,8 @@ def train(generator, discriminator,
             cross_entropy = cond_loss(transformer.output_info_list, fake, c1, m1)
 
         loss_g = -torch.mean(y_fake) + cross_entropy
-        loss_.append(('loss(G)', loss_g))
-        loss_.append(('CE', cross_entropy))
+        loss_.append(("loss(G)", loss_g))
+        loss_.append(("CE", cross_entropy))
 
         optimizerG.zero_grad()
         loss_g.backward()
@@ -140,6 +153,8 @@ def train(generator, discriminator,
         """accumulate losses"""
         for x, y in loss_:
             logs[x] = logs.get(x) + [y.item()]
-    
+
     return logs
-#%%
+
+
+# %%

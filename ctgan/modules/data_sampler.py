@@ -13,14 +13,13 @@ class DataSampler(object):
         self._data = data
 
         def is_discrete_column(column_info):
-            return (len(column_info) == 1
-                    and column_info[0].activation_fn == 'softmax')
+            return len(column_info) == 1 and column_info[0].activation_fn == "softmax"
 
         n_discrete_columns = sum(
-            [1 for column_info in output_info if is_discrete_column(column_info)])
+            [1 for column_info in output_info if is_discrete_column(column_info)]
+        )
 
-        self._discrete_column_matrix_st = np.zeros(
-            n_discrete_columns, dtype='int32')
+        self._discrete_column_matrix_st = np.zeros(n_discrete_columns, dtype="int32")
 
         # Store the row id for each category in each discrete column.
         # For example _rid_by_cat_cols[a][b] is a list of all rows with the
@@ -44,21 +43,28 @@ class DataSampler(object):
         assert st == data.shape[1]
 
         # Prepare an interval matrix for efficiently sample conditional vector
-        max_category = max([
-            column_info[0].dim
-            for column_info in output_info
-            if is_discrete_column(column_info)
-        ], default=0)
+        max_category = max(
+            [
+                column_info[0].dim
+                for column_info in output_info
+                if is_discrete_column(column_info)
+            ],
+            default=0,
+        )
 
-        self._discrete_column_cond_st = np.zeros(n_discrete_columns, dtype='int32')
-        self._discrete_column_n_category = np.zeros(n_discrete_columns, dtype='int32')
-        self._discrete_column_category_prob = np.zeros((n_discrete_columns, max_category))
+        self._discrete_column_cond_st = np.zeros(n_discrete_columns, dtype="int32")
+        self._discrete_column_n_category = np.zeros(n_discrete_columns, dtype="int32")
+        self._discrete_column_category_prob = np.zeros(
+            (n_discrete_columns, max_category)
+        )
         self._n_discrete_columns = n_discrete_columns
-        self._n_categories = sum([
-            column_info[0].dim
-            for column_info in output_info
-            if is_discrete_column(column_info)
-        ])
+        self._n_categories = sum(
+            [
+                column_info[0].dim
+                for column_info in output_info
+                if is_discrete_column(column_info)
+            ]
+        )
 
         st = 0
         current_id = 0
@@ -71,7 +77,9 @@ class DataSampler(object):
                 if log_frequency:
                     category_freq = np.log(category_freq + 1)
                 category_prob = category_freq / np.sum(category_freq)
-                self._discrete_column_category_prob[current_id, :span_info.dim] = category_prob
+                self._discrete_column_category_prob[
+                    current_id, : span_info.dim
+                ] = category_prob
                 self._discrete_column_cond_st[current_id] = current_cond_st
                 self._discrete_column_n_category[current_id] = span_info.dim
                 current_cond_st += span_info.dim
@@ -101,13 +109,16 @@ class DataSampler(object):
             return None
 
         discrete_column_id = np.random.choice(
-            np.arange(self._n_discrete_columns), batch)
+            np.arange(self._n_discrete_columns), batch
+        )
 
-        cond = np.zeros((batch, self._n_categories), dtype='float32')
-        mask = np.zeros((batch, self._n_discrete_columns), dtype='float32')
+        cond = np.zeros((batch, self._n_categories), dtype="float32")
+        mask = np.zeros((batch, self._n_discrete_columns), dtype="float32")
         mask[np.arange(batch), discrete_column_id] = 1
         category_id_in_col = self._random_choice_prob_index(discrete_column_id)
-        category_id = (self._discrete_column_cond_st[discrete_column_id] + category_id_in_col)
+        category_id = (
+            self._discrete_column_cond_st[discrete_column_id] + category_id_in_col
+        )
         cond[np.arange(batch), category_id] = 1
 
         return cond, mask, discrete_column_id, category_id_in_col
@@ -117,7 +128,7 @@ class DataSampler(object):
         if self._n_discrete_columns == 0:
             return None
 
-        cond = np.zeros((batch, self._n_categories), dtype='float32')
+        cond = np.zeros((batch, self._n_categories), dtype="float32")
 
         for i in range(batch):
             row_idx = np.random.randint(0, len(self._data))
@@ -150,8 +161,8 @@ class DataSampler(object):
 
     def generate_cond_from_condition_column_info(self, condition_info, batch):
         """Generate the condition vector."""
-        vec = np.zeros((batch, self._n_categories), dtype='float32')
-        id_ = self._discrete_column_matrix_st[condition_info['discrete_column_id']]
-        id_ += condition_info['value_id']
+        vec = np.zeros((batch, self._n_categories), dtype="float32")
+        id_ = self._discrete_column_matrix_st[condition_info["discrete_column_id"]]
+        id_ += condition_info["value_id"]
         vec[:, id_] = 1
-        return 
+        return

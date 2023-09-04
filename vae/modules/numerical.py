@@ -18,14 +18,14 @@ from .transformer_null import NullTransformer
 EPSILON = np.finfo(np.float32).eps
 MAX_DECIMALS = sys.float_info.dig - 1
 INTEGER_BOUNDS = {
-    'Int8': (-2**7, 2**7 - 1),
-    'Int16': (-2**15, 2**15 - 1),
-    'Int32': (-2**31, 2**31 - 1),
-    'Int64': (-2**63, 2**63 - 1),
-    'UInt8': (0, 2**8 - 1),
-    'UInt16': (0, 2**16 - 1),
-    'UInt32': (0, 2**32 - 1),
-    'UInt64': (0, 2**64 - 1),
+    "Int8": (-(2**7), 2**7 - 1),
+    "Int16": (-(2**15), 2**15 - 1),
+    "Int32": (-(2**31), 2**31 - 1),
+    "Int64": (-(2**63), 2**63 - 1),
+    "UInt8": (0, 2**8 - 1),
+    "UInt16": (0, 2**16 - 1),
+    "UInt32": (0, 2**32 - 1),
+    "UInt64": (0, 2**64 - 1),
 }
 
 
@@ -58,7 +58,7 @@ class FloatFormatter(BaseTransformer):
             Defaults to ``'Float'``.
     """
 
-    INPUT_SDTYPE = 'numerical'
+    INPUT_SDTYPE = "numerical"
     null_transformer = None
     missing_value_replacement = None
     _dtype = None
@@ -66,11 +66,16 @@ class FloatFormatter(BaseTransformer):
     _min_value = None
     _max_value = None
 
-    def __init__(self, missing_value_replacement='mean', model_missing_values=False,
-                 learn_rounding_scheme=False, enforce_min_max_values=False,
-                 computer_representation='Float'):
+    def __init__(
+        self,
+        missing_value_replacement="mean",
+        model_missing_values=False,
+        learn_rounding_scheme=False,
+        enforce_min_max_values=False,
+        computer_representation="Float",
+    ):
         super().__init__()
-        self._set_missing_value_replacement('mean', missing_value_replacement)
+        self._set_missing_value_replacement("mean", missing_value_replacement)
         self.model_missing_values = model_missing_values
         self.learn_rounding_scheme = learn_rounding_scheme
         self.enforce_min_max_values = enforce_min_max_values
@@ -93,11 +98,11 @@ class FloatFormatter(BaseTransformer):
         raise ValueError(
             f"The {bound_type} value in column '{name}' is {value}."
             f" All values represented by '{self.computer_representation}'"
-            f' must be in the range [{min_bound}, {max_bound}].'
+            f" must be in the range [{min_bound}, {max_bound}]."
         )
 
     def _validate_values_within_bounds(self, data):
-        if self.computer_representation != 'Float':
+        if self.computer_representation != "Float":
             fractions = data[~data.isna() & data % 1 != 0]
             if not fractions.empty:
                 raise ValueError(
@@ -110,11 +115,13 @@ class FloatFormatter(BaseTransformer):
             min_bound, max_bound = INTEGER_BOUNDS[self.computer_representation]
             if min_value < min_bound:
                 self._raise_out_of_bounds_error(
-                    min_value, data.name, 'minimum', min_bound, max_bound)
+                    min_value, data.name, "minimum", min_bound, max_bound
+                )
 
             if max_value > max_bound:
                 self._raise_out_of_bounds_error(
-                    max_value, data.name, 'maximum', min_bound, max_bound)
+                    max_value, data.name, "maximum", min_bound, max_bound
+                )
 
     def _fit(self, data):
         """Fit the transformer to the data.
@@ -133,12 +140,14 @@ class FloatFormatter(BaseTransformer):
             self._rounding_digits = self._learn_rounding_digits(data)
 
         self.null_transformer = NullTransformer(
-            self.missing_value_replacement,
-            self.model_missing_values
+            self.missing_value_replacement, self.model_missing_values
         )
         self.null_transformer.fit(data)
         if self.null_transformer.models_missing_values():
-            self.output_properties['is_null'] = {'sdtype': 'float', 'next_transformer': None}
+            self.output_properties["is_null"] = {
+                "sdtype": "float",
+                "next_transformer": None,
+            }
 
     def _transform(self, data):
         """Transform numerical data.
@@ -168,11 +177,11 @@ class FloatFormatter(BaseTransformer):
         data = self.null_transformer.reverse_transform(data)
         if self.enforce_min_max_values:
             data = data.clip(self._min_value, self._max_value)
-        elif self.computer_representation != 'Float':
+        elif self.computer_representation != "Float":
             min_bound, max_bound = INTEGER_BOUNDS[self.computer_representation]
             data = data.clip(min_bound, max_bound)
 
-        is_integer = np.dtype(self._dtype).kind == 'i'
+        is_integer = np.dtype(self._dtype).kind == "i"
         if self.learn_rounding_scheme or is_integer:
             data = data.round(self._rounding_digits or 0)
 
@@ -221,12 +230,17 @@ class GaussianNormalizer(FloatFormatter):
 
     _univariate = None
 
-    def __init__(self, model_missing_values=False, learn_rounding_scheme=False,
-                 enforce_min_max_values=False, distribution='truncated_gaussian'):
+    def __init__(
+        self,
+        model_missing_values=False,
+        learn_rounding_scheme=False,
+        enforce_min_max_values=False,
+        distribution="truncated_gaussian",
+    ):
         super().__init__(
             model_missing_values=model_missing_values,
             learn_rounding_scheme=learn_rounding_scheme,
-            enforce_min_max_values=enforce_min_max_values
+            enforce_min_max_values=enforce_min_max_values,
         )
 
         self.distribution = distribution  # Distribution initialized by the user
@@ -243,18 +257,18 @@ class GaussianNormalizer(FloatFormatter):
             from copulas import univariate  # pylint: disable=import-outside-toplevel
         except ImportError as error:
             error.msg += (
-                '\n\nIt seems like `copulas` is not installed.\n'
-                'Please install it using:\n\n    pip install rdt[copulas]'
+                "\n\nIt seems like `copulas` is not installed.\n"
+                "Please install it using:\n\n    pip install rdt[copulas]"
             )
             raise
 
         return {
-            'gaussian': univariate.GaussianUnivariate,
-            'gamma': univariate.GammaUnivariate,
-            'beta': univariate.BetaUnivariate,
-            'student_t': univariate.StudentTUnivariate,
-            'gaussian_kde': univariate.GaussianKDE,
-            'truncated_gaussian': univariate.TruncatedGaussian,
+            "gaussian": univariate.GaussianUnivariate,
+            "gamma": univariate.GammaUnivariate,
+            "beta": univariate.BetaUnivariate,
+            "student_t": univariate.StudentTUnivariate,
+            "gaussian_kde": univariate.GaussianKDE,
+            "truncated_gaussian": univariate.TruncatedGaussian,
         }
 
     def _get_univariate(self):
@@ -263,10 +277,13 @@ class GaussianNormalizer(FloatFormatter):
             return copy.deepcopy(distribution)
         if isinstance(distribution, tuple):
             return distribution[0](**distribution[1])
-        if isinstance(distribution, type) and distribution in self._distributions.values():
+        if (
+            isinstance(distribution, type)
+            and distribution in self._distributions.values()
+        ):
             return distribution()
 
-        raise TypeError(f'Invalid distribution: {distribution}')
+        raise TypeError(f"Invalid distribution: {distribution}")
 
     def _fit(self, data):
         """Fit the transformer to the data.
@@ -282,7 +299,7 @@ class GaussianNormalizer(FloatFormatter):
             data = data[:, 0]
 
         with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
+            warnings.simplefilter("ignore")
             self._univariate.fit(data)
 
     def _copula_transform(self, data):
@@ -363,19 +380,25 @@ class ClusterBasedNormalizer(FloatFormatter):
     _bgm_transformer = None
     valid_component_indicator = None
 
-    def __init__(self, model_missing_values=False, learn_rounding_scheme=False,
-                 enforce_min_max_values=False, max_clusters=10, weight_threshold=0.005,
-                 random_state=0):
+    def __init__(
+        self,
+        model_missing_values=False,
+        learn_rounding_scheme=False,
+        enforce_min_max_values=False,
+        max_clusters=10,
+        weight_threshold=0.005,
+        random_state=0,
+    ):
         super().__init__(
             model_missing_values=model_missing_values,
             learn_rounding_scheme=learn_rounding_scheme,
-            enforce_min_max_values=enforce_min_max_values
+            enforce_min_max_values=enforce_min_max_values,
         )
         self.max_clusters = max_clusters
         self.weight_threshold = weight_threshold
         self.output_properties = {
-            'normalized': {'sdtype': 'float', 'next_transformer': None},
-            'component': {'sdtype': 'categorical', 'next_transformer': None},
+            "normalized": {"sdtype": "float", "next_transformer": None},
+            "component": {"sdtype": "categorical", "next_transformer": None},
         }
         self.random_state = random_state
 
@@ -387,10 +410,10 @@ class ClusterBasedNormalizer(FloatFormatter):
         """
         self._bgm_transformer = BayesianGaussianMixture(
             n_components=self.max_clusters,
-            weight_concentration_prior_type='dirichlet_process',
+            weight_concentration_prior_type="dirichlet_process",
             weight_concentration_prior=0.001,
             n_init=1,
-            random_state=self.random_state # randomness control
+            random_state=self.random_state,  # randomness control
         )
 
         super()._fit(data)
@@ -399,10 +422,12 @@ class ClusterBasedNormalizer(FloatFormatter):
             data = data[:, 0]
 
         with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
+            warnings.simplefilter("ignore")
             self._bgm_transformer.fit(data.reshape(-1, 1))
 
-        self.valid_component_indicator = self._bgm_transformer.weights_ > self.weight_threshold
+        self.valid_component_indicator = (
+            self._bgm_transformer.weights_ > self.weight_threshold
+        )
 
     def _transform(self, data):
         """Transform the numerical data.
@@ -419,24 +444,25 @@ class ClusterBasedNormalizer(FloatFormatter):
         data = data.reshape((len(data), 1))
         means = self._bgm_transformer.means_.reshape((1, self.max_clusters))
 
-        stds = np.sqrt(self._bgm_transformer.covariances_).reshape((1, self.max_clusters))
+        stds = np.sqrt(self._bgm_transformer.covariances_).reshape(
+            (1, self.max_clusters)
+        )
         normalized_values = (data - means) / (self.STD_MULTIPLIER * stds)
         normalized_values = normalized_values[:, self.valid_component_indicator]
         component_probs = self._bgm_transformer.predict_proba(data)
         component_probs = component_probs[:, self.valid_component_indicator]
 
-        selected_component = np.zeros(len(data), dtype='int')
+        selected_component = np.zeros(len(data), dtype="int")
         for i in range(len(data)):
             component_prob_t = component_probs[i] + 1e-6
             component_prob_t = component_prob_t / component_prob_t.sum()
             selected_component[i] = np.random.choice(
-                np.arange(self.valid_component_indicator.sum()),
-                p=component_prob_t
+                np.arange(self.valid_component_indicator.sum()), p=component_prob_t
             )
 
         aranged = np.arange(len(data))
         normalized = normalized_values[aranged, selected_component].reshape([-1, 1])
-        normalized = np.clip(normalized, -.99, .99)
+        normalized = np.clip(normalized, -0.99, 0.99)
         normalized = normalized[:, 0]
         rows = [normalized, selected_component]
         if self.null_transformer and self.null_transformer.models_missing_values():

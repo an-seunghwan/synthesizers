@@ -14,7 +14,7 @@ from .errors import TransformerInputError
 LOGGER = logging.getLogger(__name__)
 
 
-class NullTransformer():
+class NullTransformer:
     """Transformer for data that contains Null values.
     Args:
         missing_value_replacement (object or None):
@@ -62,16 +62,16 @@ class NullTransformer():
         if self._missing_value_replacement is None:
             return None
 
-        if self._missing_value_replacement in {'mean', 'mode'} and pd.isna(data).all():
+        if self._missing_value_replacement in {"mean", "mode"} and pd.isna(data).all():
             raise TransformerInputError(
                 f"'missing_value_replacement' cannot be set to '{self._missing_value_replacement}'"
-                ' when the provided data only contains NaNs.'
+                " when the provided data only contains NaNs."
             )
 
-        if self._missing_value_replacement == 'mean':
+        if self._missing_value_replacement == "mean":
             return data.mean()
 
-        if self._missing_value_replacement == 'mode':
+        if self._missing_value_replacement == "mode":
             return data.mode(dropna=True)[0]
 
         return self._missing_value_replacement
@@ -90,8 +90,8 @@ class NullTransformer():
         if not self.nulls and self._model_missing_values:
             self._model_missing_values = False
             guidance_message = (
-                f'Guidance: There are no missing values in column {data.name}. '
-                'Extra column not created.'
+                f"Guidance: There are no missing values in column {data.name}. "
+                "Extra column not created."
             )
             LOGGER.info(guidance_message)
 
@@ -135,7 +135,7 @@ class NullTransformer():
             data = data[:, 0]
 
         elif self.nulls:
-            isna = np.random.random((len(data), )) < self._null_percentage
+            isna = np.random.random((len(data),)) < self._null_percentage
 
         data = pd.Series(data)
 

@@ -1,8 +1,9 @@
-#%%
+# %%
 import os
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
+os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-#%%
+# %%
 import numpy as np
 import pandas as pd
 import tqdm
@@ -19,90 +20,117 @@ import torch.nn.functional as F
 from module.utils import str2bool, postprocess
 from module.evaluation import evaluate
 from module.datasets import MyDataset, build_dataset
-#%%
+
+# %%
 import sys
 import subprocess
+
 try:
     import wandb
 except:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "wandb"])
     with open("./wandb_api.txt", "r") as f:
         key = f.readlines()
-    subprocess.run(["wandb", "login"], input=key[0], encoding='utf-8')
+    subprocess.run(["wandb", "login"], input=key[0], encoding="utf-8")
     import wandb
 
 project = "Synthetic(High)"
 entity = "anseunghwan"
 
 run = wandb.init(
-    project=project, 
+    project=project,
     entity=entity,
-    tags=['inference'],
+    tags=["inference"],
 )
-#%%
+# %%
 import argparse
+
+
 def get_args(debug):
-    parser = argparse.ArgumentParser('parameters')
-    
-    parser.add_argument('--num', type=int, default=0, 
-                        help='model number')
-    parser.add_argument('--model', type=str, default='WGAN-GP-A')
-    parser.add_argument('--dataset', type=str, default='census', 
-                        help='Dataset options: census, survey')
-    
+    parser = argparse.ArgumentParser("parameters")
+
+    parser.add_argument("--num", type=int, default=0, help="model number")
+    parser.add_argument("--model", type=str, default="WGAN-GP-A")
+    parser.add_argument(
+        "--dataset", type=str, default="census", help="Dataset options: census, survey"
+    )
+
     if debug:
         return parser.parse_args(args=[])
-    else:    
+    else:
         return parser.parse_args()
-#%%
+
+
+# %%
 def main():
-    #%%
-    config = vars(get_args(debug=False)) # default configuration
-    
+    # %%
+    config = vars(get_args(debug=False))  # default configuration
+
     """model load"""
     model_name = f'WGAN_GP_A_{config["dataset"]}'
-    artifact = wandb.use_artifact(f'{entity}/{project}/{model_name}:v{config["num"]}', type='model')
+    artifact = wandb.use_artifact(
+        f'{entity}/{project}/{model_name}:v{config["num"]}', type="model"
+    )
     for key, item in artifact.metadata.items():
         config[key] = item
     model_dir = artifact.download()
-    
+
     torch.manual_seed(config["seed"])
-    device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+    device = (
+        torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    )
     config["cuda"] = torch.cuda.is_available()
     wandb.config.update(config)
-    #%%
+    # %%
     out = build_dataset(config)
     dataset = out[0]
 
     config["p"] = dataset.p
-    #%%
-    model_module = importlib.import_module('module.model')
+    # %%
+    model_module = importlib.import_module("module.model")
     importlib.reload(model_module)
 
-    generator = getattr(model_module, 'Generator')(
-        config["embedding_dim"], 
-        config["p"], 
+    generator = getattr(model_module, "Generator")(
+        config["embedding_dim"],
+        config["p"],
         hidden_sizes=config["hidden_dims_gen"],
         bn_decay=0.1,
-        activation='sigmoid').to(device)
-    #%%
+        activation="sigmoid",
+    ).to(device)
+    # %%
     try:
         generator.load_state_dict(
             torch.load(
-                model_dir + '/' + [x for x in os.listdir(model_dir) if x.endswith('pth') and x.startswith('generator')][0]))
+                model_dir
+                + "/"
+                + [
+                    x
+                    for x in os.listdir(model_dir)
+                    if x.endswith("pth") and x.startswith("generator")
+                ][0]
+            )
+        )
     except:
         generator.load_state_dict(
             torch.load(
-                model_dir + '/' + [x for x in os.listdir(model_dir) if x.endswith('pth') and x.startswith('generator')][0], 
-                map_location=torch.device('cpu')))
-        
+                model_dir
+                + "/"
+                + [
+                    x
+                    for x in os.listdir(model_dir)
+                    if x.endswith("pth") and x.startswith("generator")
+                ][0],
+                map_location=torch.device("cpu"),
+            )
+        )
+
     generator.eval()
-    #%%
+    # %%
     count_parameters = lambda model: sum(p.numel() for p in model.parameters())
     num_params = count_parameters(generator)
     print(f"Number of Parameters: {num_params / 1000:.1f}K")
-    wandb.log({'Number of Parameters': num_params / 1000})
-    #%%
+    wandb.log({"Number of Parameters": num_params / 1000})
+    # %%
     train = out[1]
     test = out[2]
     OutputInfo_list = out[3]
@@ -112,44 +140,48 @@ def main():
 
     n = len(train)
     torch.random.manual_seed(config["seed"])
-    #%%
+    # %%
     """Synthetic Data Generation"""
     data = []
     steps = n // config["batch_size"] + 1
-    
+
     with torch.no_grad():
         for _ in range(steps):
-            z = torch.randn(config["batch_size"], config["embedding_dim"]).to(device) 
+            z = torch.randn(config["batch_size"], config["embedding_dim"]).to(device)
             data.append(generator(z, training=False))
     data = torch.cat(data, dim=0)
     data = data[:n, :]
-    
-    syndata = postprocess(data, OutputInfo_list, colnames, discrete_dicts, discrete_dicts_reverse)
-    #%%
+
+    syndata = postprocess(
+        data, OutputInfo_list, colnames, discrete_dicts, discrete_dicts_reverse
+    )
+    # %%
     metrics = evaluate(syndata, train, test, config, model_name)
-    
+
     print(f"KL: {metrics.KL:.3f}")
-    wandb.log({'KL': metrics.KL})
+    wandb.log({"KL": metrics.KL})
     print(f"KS: {metrics.KS:.3f}")
-    wandb.log({'KS': metrics.KS})
+    wandb.log({"KS": metrics.KS})
     print(f"Coverage: {metrics.coverage:.3f}")
-    wandb.log({'Coverage': metrics.coverage})
+    wandb.log({"Coverage": metrics.coverage})
     print(f"DimProb: {metrics.mse_dim_prob:.3f}")
-    wandb.log({'DimProb': metrics.mse_dim_prob})
-    wandb.log({'Proportion': wandb.Image(metrics.Proportion)})
+    wandb.log({"DimProb": metrics.mse_dim_prob})
+    wandb.log({"Proportion": wandb.Image(metrics.Proportion)})
     print(f"PCD(Pearson): {metrics.PCD_Pearson:.3f}")
-    wandb.log({'PCD(Pearson)': metrics.PCD_Pearson})
+    wandb.log({"PCD(Pearson)": metrics.PCD_Pearson})
     print(f"PCD(Kendall): {metrics.PCD_Kendall:.3f}")
-    wandb.log({'PCD(Kendall)': metrics.PCD_Kendall})
+    wandb.log({"PCD(Kendall)": metrics.PCD_Kendall})
     print(f"logcluster: {metrics.logcluster:.3f}")
-    wandb.log({'logcluster': metrics.logcluster})
+    wandb.log({"logcluster": metrics.logcluster})
     print(f"VarPred: {metrics.VarPred:.3f}")
-    wandb.log({'VarPred': metrics.VarPred})
-    wandb.log({'ACC': wandb.Image(metrics.ACC)})
-    #%%
+    wandb.log({"VarPred": metrics.VarPred})
+    wandb.log({"ACC": wandb.Image(metrics.ACC)})
+    # %%
     wandb.config.update(config, allow_val_change=True)
     wandb.run.finish()
-#%%
-if __name__ == '__main__':
+
+
+# %%
+if __name__ == "__main__":
     main()
-#%%
+# %%
