@@ -52,7 +52,7 @@ def get_args(debug):
     parser.add_argument("--num", type=int, default=0, help="model number")
     parser.add_argument("--model", type=str, default="MC-Gumbel")
     parser.add_argument(
-        "--dataset", type=str, default="census", help="Dataset options: census, survey"
+        "--dataset", type=str, default="census", help="Dataset options: census, survey, income"
     )
     parser.add_argument(
         "--tau", default=0.666, type=float, help="temperature in Gumbel-Softmax"

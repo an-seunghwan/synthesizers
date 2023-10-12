@@ -56,7 +56,7 @@ def get_args(debug):
     )
     parser.add_argument("--model", type=str, default="cor_auto")
     parser.add_argument(
-        "--dataset", type=str, default="census", help="Dataset options: census, survey"
+        "--dataset", type=str, default="census", help="Dataset options: census, survey, income"
     )
 
     parser.add_argument(
