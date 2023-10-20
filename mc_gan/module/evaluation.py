@@ -266,7 +266,7 @@ def attribute_disclosure(K, compromised, syndata, attr_compromised):
 #%%
 def privacyloss(train, test, syndata, data_percent=15):
     # Sampling smaller sets of real and synthetic data to reduce the time complexity of the evaluation
-    train_sampled = test.sample(n=int(len(train)*(.01*data_percent)), random_state=42).to_numpy()
+    train_sampled = train.sample(n=int(len(train)*(.01*data_percent)), random_state=42).to_numpy()
     test_sampled = test.sample(n=int(len(test)*(.01*data_percent)), random_state=42).to_numpy()
     syndata_sampled = syndata.sample(n=int(len(syndata)*(.01*data_percent)), random_state=42).to_numpy()
     
