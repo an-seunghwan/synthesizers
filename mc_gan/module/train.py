@@ -598,3 +598,52 @@ def train_DAAE(
 
 
 # %%
+def phi(s, D):
+    return (1 + (4 * s) / (2 * D - 3)) ** (-1 / 2)
+#%%
+def train_LCW(
+    dataloader,
+    autoencoder,
+    generator,
+    config,
+    optimizer,
+    device,
+):
+    logs = {
+        "loss": [],
+    }
+
+    for x_batch in tqdm.tqdm(iter(dataloader), desc="inner loop"):
+        x_batch = x_batch.to(device)
+
+        loss_ = []
+
+        optimizer.zero_grad()
+        
+        emb = autoencoder.encoder(x_batch)
+        
+        noise = torch.randn(x_batch.size(0), config["embedding_dim"]).to(device)
+        latent = generator(noise)
+
+        gamma = (4 / (3 * x_batch.size(0))) ** (2 / 5)
+        cw1 = torch.cdist(emb, emb) ** 2 / (4 * gamma)
+        cw2 = torch.cdist(latent, latent) ** 2 / (4 * gamma)
+        cw3 = torch.cdist(emb, latent) ** 2 / (4 * gamma)
+        loss = phi(cw1, D=emb.size(1)).sum()
+        loss += phi(cw2, D=emb.size(1)).sum()
+        loss += -2 * phi(cw3, D=emb.size(1)).sum()
+        loss /= (2 * emb.size(0) ** 2 * torch.tensor(torch.pi * gamma).sqrt())
+        loss = loss.log()
+        loss_.append(("loss", loss))
+        
+        loss.backward()
+        optimizer.step()
+
+        """accumulate losses"""
+        for x, y in loss_:
+            logs[x] = logs.get(x) + [y.item()]
+
+    return logs
+
+
+# %%
