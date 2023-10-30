@@ -71,9 +71,9 @@ def get_args(debug):
         help="hidden dimensions for autoencoder",
     )
 
-    parser.add_argument("--epochs", default=500, type=int, help="the number of epochs")
+    parser.add_argument("--epochs", default=1000, type=int, help="the number of epochs")
     parser.add_argument("--batch_size", default=1024, type=int, help="batch size")
-    parser.add_argument("--lr", default=0.0005, type=float, help="learning rate")
+    parser.add_argument("--lr", default=0.0001, type=float, help="learning rate")
     parser.add_argument("--lambda", default=1, type=float, help="weight parameter of squared Cramer-Wold distance")
 
     if debug:
